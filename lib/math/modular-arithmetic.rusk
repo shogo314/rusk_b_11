@@ -1,0 +1,13 @@
+/// 非負の指数と正の法に対する剰余累乗。積はInt128で計算します。
+fn pow_mod(a: Int, n: Int, modulus: Int) -> Int {
+    assert(n >= 0 && modulus > 0);
+    if n == 0 {
+        return 1 % modulus;
+    }
+    let half := pow_mod(a, n / 2, modulus);
+    let result := Int(Int128(half) * Int128(half) % Int128(modulus));
+    if n % 2 {
+        result = Int(Int128(result) * Int128(a % modulus) % Int128(modulus));
+    }
+    return result;
+}

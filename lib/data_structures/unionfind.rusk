@@ -1,13 +1,17 @@
+/// 連結成分を管理するUnion-Findです。
 struct UnionFind {
+    /// 根では負の成分サイズ、それ以外では親頂点を保持します。
     parents: Vec<Int>;
 }
 
+/// 要素数nのUnion-Findを構築します。
 fn UnionFind(n: Int) -> UnionFind {
     return UnionFind {
         parents: [-1; n]
     };
 }
 
+/// 頂点の代表を返し、経路を圧縮します。
 fn leader(uf: UnionFind, vertex: Int) -> Int {
     let root = vertex;
     while uf.parents[root] >= 0 {
@@ -22,6 +26,7 @@ fn leader(uf: UnionFind, vertex: Int) -> Int {
     return root;
 }
 
+/// 2頂点の連結成分をサイズの小さい側から併合します。
 fn unite(uf: UnionFind, u: Int, v: Int) {
     let a := uf.leader(u);
     let b := uf.leader(v);
@@ -37,6 +42,7 @@ fn unite(uf: UnionFind, u: Int, v: Int) {
     uf.parents[b] = a;
 }
 
+/// 2頂点が同じ連結成分に属するか返します。
 fn same(uf: UnionFind, u: Int, v: Int) -> Bool {
     return uf.leader(u) == uf.leader(v);
 }

@@ -45,14 +45,16 @@ impl Compiler {
                     .span
                     .error("invalid native return ABI; expected object"));
             }
-            if result == "Unit" {
+            if access_types::underlying(result) == "Unit" {
                 self.native_info_mut(index).unit_object = true;
             }
         }
         Ok(())
     }
     pub(super) fn abi_reference_name(&self, index: usize, object: bool) -> String {
-        if self.functions[index].result != "Unit" || object == self.native_unit_object(index) {
+        if access_types::underlying(&self.functions[index].result) != "Unit"
+            || object == self.native_unit_object(index)
+        {
             self.functions[index].cpp.clone()
         } else {
             (if object {
@@ -65,7 +67,9 @@ impl Compiler {
     }
     pub(super) fn abi_reference(&mut self, index: usize, object: bool) -> String {
         self.native_requests.direct.insert((index, object));
-        if self.functions[index].result == "Unit" && object != self.native_unit_object(index) {
+        if access_types::underlying(&self.functions[index].result) == "Unit"
+            && object != self.native_unit_object(index)
+        {
             self.native_requests.unit_bridges.insert((
                 index,
                 if object {
@@ -258,9 +262,11 @@ impl Compiler {
             generics::parameters_valid(parameters)?;
             let assignment = matches!(kind.as_str(), "record_assign" | "enum_assign");
             let output = kind == "tuple_write";
+            let hashing = matches!(kind.as_str(), "record_hash" | "enum_hash");
             let comparison = matches!(
                 kind.as_str(),
                 "tuple_eq"
+                    | "enum_eq"
                     | "tuple_ne"
                     | "tuple_lt"
                     | "tuple_le"
@@ -276,6 +282,7 @@ impl Compiler {
             let vector_input = kind == "vector_read";
             let input = kind == "tuple_read" || vector_input;
             let valid_kind = assignment
+                || hashing
                 || input
                 || output
                 || comparison
@@ -302,6 +309,8 @@ impl Compiler {
                         r.text
                             != if comparison {
                                 comparison_result
+                            } else if hashing {
+                                "Int"
                             } else if assignment || output {
                                 "Unit"
                             } else {
@@ -311,9 +320,10 @@ impl Compiler {
                 })
                 || ((assignment || output) && parameters[0].text == "Unit")
                 || (comparison && parameters[0].text == comparison_result)
+                || (hashing && parameters[0].text == "Int")
                 || properties.keys().any(|key| {
                     !matches!(key.as_str(), "code" | "derive")
-                        && !((output || comparison)
+                        && !((output || comparison || hashing)
                             && matches!(
                                 key.as_str(),
                                 "effects"
@@ -330,6 +340,8 @@ impl Compiler {
                     "invalid native total comparison derivation; expected one type parameter and (T,T)->Ordering"
                 }else if comparison {
                     "invalid native comparison derivation; expected one type parameter and (T,T)->Bool"
+                }else if hashing {
+                    "invalid native hash derivation; expected one type parameter and (T)->Int"
                 }else if output {
                     "invalid native output derivation; expected one type parameter and (T)->Unit"
                 }else if vector_input {
@@ -383,8 +395,13 @@ impl Compiler {
             return Err(name.span.error("recursive generic extern type expansion"));
         }
         let result = (|| {
+            generics::validate_bindings(&template.parameters, &bindings, &name.span)?;
             for ty in args {
+                if generics::constant_kind(ty).is_some() {
+                    continue;
+                }
                 self.check_type(&Name {
+                    constant: None,
                     text: ty.into(),
                     span: name.span.clone(),
                 })?;
@@ -436,6 +453,7 @@ impl Compiler {
                 );
                 self.validate_representation(
                     &Name {
+                        constant: None,
                         text: name.text.clone(),
                         span: template.span.clone(),
                     },
@@ -483,7 +501,9 @@ impl Compiler {
         let Some((base, args)) = tuples::type_parts(ty) else {
             return Err(span.error(format!("unknown type '{ty}'")));
         };
-        let arity = if let Some(arity) = self.external_type_arity(base) {
+        let arity = if base == "__RuskReadonly" {
+            Some(1)
+        } else if let Some(arity) = self.external_type_arity(base) {
             Some(arity)
         } else if let Some(d) = self.generic_records.get(base) {
             Some(d.parameters.len())
@@ -508,7 +528,9 @@ impl Compiler {
             return Err(span.error(format!("type '{base}' expects {arity} type arguments")));
         }
         for arg in args {
-            self.validate_symbolic_type(arg, parameters, span)?;
+            if generics::constant_kind(arg).is_none() {
+                self.validate_symbolic_type(arg, parameters, span)?;
+            }
         }
         Ok(())
     }
@@ -555,6 +577,7 @@ impl Compiler {
                             )));
                         }
                         scoped.push(Name {
+                            constant: None,
                             text: name.clone(),
                             span: span.clone(),
                         });
@@ -563,6 +586,7 @@ impl Compiler {
                     let locals = names
                         .iter()
                         .map(|name| Name {
+                            constant: None,
                             text: name.clone(),
                             span: span.clone(),
                         })
@@ -594,6 +618,7 @@ impl Compiler {
                     }
                     let mut parameters = parameters.to_vec();
                     parameters.push(Name {
+                        constant: None,
                         text: element,
                         span: span.clone(),
                     });
@@ -636,6 +661,7 @@ impl Compiler {
                     }
                     let mut parameters = parameters.to_vec();
                     parameters.push(Name {
+                        constant: None,
                         text: element,
                         span: span.clone(),
                     });
@@ -838,6 +864,7 @@ impl Compiler {
                         .iter()
                         .enumerate()
                         .map(|(i, _)| Name {
+                            constant: None,
                             text: format!("${i}"),
                             span: span.clone(),
                         })
@@ -901,6 +928,7 @@ impl Compiler {
                 Part::Variants { ty, index, parts } => {
                     let ty = generics::substitute(&ty, bindings);
                     self.check_type(&Name {
+                        constant: None,
                         text: ty.clone(),
                         span: span.clone(),
                     })?;
@@ -941,6 +969,7 @@ impl Compiler {
                 } => {
                     let ty = generics::substitute(&ty, bindings);
                     self.check_type(&Name {
+                        constant: None,
                         text: ty.clone(),
                         span: span.clone(),
                     })?;
@@ -1021,7 +1050,16 @@ impl Compiler {
                 ),
                 Part::Type(ty) => {
                     let ty = generics::substitute(&ty, bindings);
+                    if generics::constant_kind(&ty).is_some() {
+                        output.push_str(&if ty == "-9223372036854775808" {
+                            "(-9223372036854775807LL-1)".into()
+                        } else {
+                            ty
+                        });
+                        continue;
+                    }
                     self.check_type(&Name {
+                        constant: None,
                         text: ty.clone(),
                         span: span.clone(),
                     })?;
@@ -1039,10 +1077,11 @@ impl Compiler {
                 Part::NonUnitType(ty) => {
                     let ty = generics::substitute(&ty, bindings);
                     self.check_type(&Name {
+                        constant: None,
                         text: ty.clone(),
                         span: span.clone(),
                     })?;
-                    if ty == "Unit" {
+                    if access_types::underlying(&ty) == "Unit" {
                         return Err(span.error(
                             "native nonunit reference requires a value type other than Unit",
                         ));
@@ -1052,10 +1091,11 @@ impl Compiler {
                 Part::ReturnType(ty) => {
                     let ty = generics::substitute(&ty, bindings);
                     self.check_type(&Name {
+                        constant: None,
                         text: ty.clone(),
                         span: span.clone(),
                     })?;
-                    output.push_str(&if ty == "Unit" {
+                    output.push_str(&if access_types::underlying(&ty) == "Unit" {
                         "void".into()
                     } else {
                         format!("Obj<{}>", self.types[&ty])
@@ -1064,13 +1104,14 @@ impl Compiler {
                 Part::Finish(ty) => {
                     let ty = generics::substitute(&ty, bindings);
                     self.check_type(&Name {
+                        constant: None,
                         text: ty.clone(),
                         span: span.clone(),
                     })?;
                     output.push_str(&format!(
                         "rusk_finish_return<{},{}>",
                         self.types[&ty],
-                        ty == "Unit"
+                        access_types::underlying(&ty) == "Unit"
                     ));
                 }
                 Part::Invoke {
@@ -1086,7 +1127,13 @@ impl Compiler {
                     let expected = generics::substitute(&result, bindings);
                     let callback =
                         self.specialize_callable(&ty, &arguments, Some(&expected), span)?;
-                    if callback.parameters != arguments {
+                    if callback.parameters.len() != arguments.len()
+                        || !callback
+                            .parameters
+                            .iter()
+                            .zip(&arguments)
+                            .all(|(p, a)| access_types::same(p, a))
+                    {
                         return Err(span.error("native callback parameter type mismatch"));
                     }
                     self.same(
@@ -1101,6 +1148,14 @@ impl Compiler {
                             .insert((callback.function, crate::analysis::effects::Query::Writes));
                         output.push_str(&format!("rusk_writes_{}", callback.function));
                     } else {
+                        for (parameter, ty) in arguments.iter().enumerate() {
+                            self.readonly_native_uses.insert((
+                                callback.function,
+                                parameter,
+                                ty.clone(),
+                                span.clone(),
+                            ));
+                        }
                         if let Some(owner) = owner {
                             self.record_native_dependency(
                                 owner,
@@ -1125,6 +1180,7 @@ impl Compiler {
                     let name = generics::substitute(&name, bindings);
                     let result = generics::substitute(&result, bindings);
                     self.check_type(&Name {
+                        constant: None,
                         text: result.clone(),
                         span: span.clone(),
                     })?;
@@ -1133,6 +1189,7 @@ impl Compiler {
                     let mut values = vec![];
                     for ty in arguments {
                         self.check_type(&Name {
+                            constant: None,
                             text: ty.clone(),
                             span: span.clone(),
                         })?;
@@ -1171,7 +1228,7 @@ impl Compiler {
                         continue;
                     }
                     if matches!(kind, template::CallKind::Value)
-                        && result != "Unit"
+                        && access_types::underlying(&result) != "Unit"
                         && !self
                             .ir_types()
                             .get(&result)
@@ -1185,6 +1242,14 @@ impl Compiler {
                         && template::identifier(&self.functions[index].cpp)
                     {
                         self.native_requests.declarations.insert(index);
+                    }
+                    for (parameter, value) in values.iter().enumerate() {
+                        self.readonly_native_uses.insert((
+                            index,
+                            parameter,
+                            value.ty.clone(),
+                            span.clone(),
+                        ));
                     }
                     self.used.insert(index);
                     if let Some(owner) = owner {

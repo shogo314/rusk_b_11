@@ -1,13 +1,12 @@
 # Ruskで記述したデータ構造
 
-`examples/beta02/library/` はRuskで書いた再利用可能なライブラリです。標準で自動読み込みされるものではないため、利用するファイルを `include` します。このページの例はリポジトリ直下の `main.rusk` に保存する想定です。別の場所へ置く場合は、そのファイルからの相対パスに直してください。
+`lib/data_structures/` はRuskで書いた標準ライブラリです。自動読み込みされるため、`include`は不要です。ファイル名と型名は[shogo-library](https://github.com/shogo314/shogo-library)を参考にしています。
 
-構造体のフィールドは公開されていますが、通常は以下の関数を通して操作します。内部の配列や長さを直接変更するとデータ構造の前提が崩れます。関数への受け渡しは共有なので、更新は呼び出し元の状態にも反映されます。独立した状態が欲しい場合は `let other = value;` を使います。
+構造体のフィールドは公開されていますが、通常は以下の関数を通して操作します。内部の配列や長さを直接変更するとデータ構造の前提が崩れます。関数への受け渡しは共有なので、更新は呼び出し元の状態にも反映されます。独立した状態が欲しい場合は `let other = value;` を使います。要素のコピーは`__copy__`に従い、手動コピーが共有を残す場合、その共有も保持されます。
 
 ## Union-Find
 
 ```rusk
-include "examples/beta02/library/union_find.rusk";
 let uf := UnionFind(4);
 uf.unite(0, 1);
 uf.unite(1, 2);
@@ -28,25 +27,24 @@ wt uf.same(0, 3), independent.same(0, 3); // No Yes
 
 ## Fenwick Tree
 
-以下の`T`は格納する要素型を表します。呼び出しでは配列・ゼロ元・更新値から推論し、明示する場合は`Fenwick::<Int>(4, 0)`のように`::<...>`を使います。
+以下の`T`は格納する要素型を表します。呼び出しでは配列・ゼロ元・更新値から推論し、明示する場合は`FenwickTree::<Int>(4, 0)`のように`::<...>`を使います。
 
 ```rusk
-include "examples/beta02/library/fenwick.rusk";
-let fw := Fenwick([1, 2, 3, 4], 0);
-wt fw.prefix_sum(3), fw.range_sum(1, 4); // 6 9
-fw.add(1, 10);
-wt fw.range_sum(1, 3); // 15
-let empty := Fenwick(0, 0);
-wt empty.range_sum(0, 0); // 0
+let fw := FenwickTree([1, 2, 3, 4], 0);
+wt fw.prefix_prod(3), fw.prod(1, 4); // 6 9
+fw.apply(1, 10);
+wt fw.prod(1, 3); // 15
+let empty := FenwickTree(0, 0);
+wt empty.prod(0, 0); // 0
 ```
 
 | 呼び出し | 結果・内容 |
 |---|---|
-| `Fenwick(n, zero) -> Fenwick<T>` | `n` 要素をゼロ元で初期化。`n >= 0` |
-| `Fenwick(values, zero) -> Fenwick<T>` | 初期配列から構築 |
-| `fw.add(position, delta)` | 位置に `delta` を加算 |
-| `fw.prefix_sum(end) -> T` | 半開区間 `[0, end)` の集計 |
-| `fw.range_sum(left, right) -> T` | 半開区間 `[left, right)` の集計 |
+| `FenwickTree(n, zero) -> FenwickTree<T>` | `n` 要素をゼロ元で初期化。`n >= 0` |
+| `FenwickTree(values, zero) -> FenwickTree<T>` | 初期配列から構築 |
+| `fw.apply(position, delta)` | 位置に `delta` を加算 |
+| `fw.prefix_prod(end) -> T` | 半開区間 `[0, end)` の集計 |
+| `fw.prod(left, right) -> T` | 半開区間 `[left, right)` の集計 |
 
 更新位置は `0 <= position < n`、区間は `0 <= left <= right <= n`。空区間はゼロ元です。不正な位置・区間は `assert` で失敗します。初期配列と内部状態は独立するため、構築後に元の配列を書き換えても木は変わりません。
 
@@ -57,7 +55,6 @@ wt empty.range_sum(0, 0); // 0
 ## 区間和セグメント木
 
 ```rusk
-include "examples/beta02/library/sum_segment_tree.rusk";
 let seg := SumSegTree([1, 2, 3, 4], 0);
 wt seg.prod(1, 4); // 9
 seg.set(2, 10);
@@ -85,14 +82,13 @@ wt words.prod(0, 3); // abXef
 通常のRusk関数として演算フックを定義できます。次は整数の重みを包む構造体です。構造体の `copy` は自動生成されます。
 
 ```rusk
-include "examples/beta02/library/fenwick.rusk";
 struct Weight { value: Int; }
 fn Weight(value: Int) -> Weight { return Weight { value: value }; }
 fn __add__(a: Weight, b: Weight) -> Weight { return Weight(a.value + b.value); }
 fn __sub__(a: Weight, b: Weight) -> Weight { return Weight(a.value - b.value); }
-let fw := Fenwick([Weight(2), Weight(5)], Weight(0));
-fw.add(0, Weight(3));
-wt fw.range_sum(0, 2).value; // 10
+let fw := FenwickTree([Weight(2), Weight(5)], Weight(0));
+fw.apply(0, Weight(3));
+wt fw.prod(0, 2).value; // 10
 ```
 
 構造体全体の出力は自動生成しないため、例では結果の `.value` を出力します。利用に必要な演算は型を具体化したときに検査します。演算フックの名前は [演算と共有](../reference/index.md) と標準ライブラリの実装も参照してください。

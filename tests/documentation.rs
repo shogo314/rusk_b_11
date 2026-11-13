@@ -81,6 +81,7 @@ fn function_examples_keep_argument_and_capture_sharing() {
             ("", "9 8 3\n"),
             ("", "7 abc\n"),
             ("", "1 2 2\n"),
+            ("", "3 7\n"),
             ("", "22\n22\n"),
             ("", "1 2 1\n"),
             ("", "3 abc\n2 4\n"),
@@ -282,7 +283,7 @@ fn the_documented_fixed_rebinding_is_rejected_before_output() {
 
 #[test]
 fn readonly_examples_keep_shared_updates_and_detach_copies() {
-    let blocks = examples(ACCESS, 8);
+    let blocks = examples(ACCESS, 9);
     for (index, suffix, expected) in [
         (0, "wt original,detached;", "2\n2 3\n"),
         (1, "wt twice(left),next(right),working;", "2 3 3\n"),
@@ -290,6 +291,7 @@ fn readonly_examples_keep_shared_updates_and_detach_copies() {
         (3, "", "2 1\n"),
         (4, "", "2\n"),
         (5, "wt result,detached;", "1 2\n"),
+        (8, "", "4 2 3\n5\n"),
     ] {
         runs(&blocks[index], suffix, expected);
     }
@@ -297,7 +299,7 @@ fn readonly_examples_keep_shared_updates_and_detach_copies() {
 
 #[test]
 fn commented_readonly_violations_and_the_diagnostic_excerpt_match_the_compiler() {
-    let blocks = examples(ACCESS, 8);
+    let blocks = examples(ACCESS, 9);
     for (index, comment) in [
         (0, "// view = 3;"),
         (0, "// let alias := view; alias += 1;"),
@@ -306,6 +308,7 @@ fn commented_readonly_violations_and_the_diagnostic_excerpt_match_the_compiler()
         (3, "// values.push_back(3);"),
         (4, "// bump(x);"),
         (5, "// result = 2;"),
+        (8, "// items[0] = 9;"),
     ] {
         rejects(
             &replace(
@@ -383,4 +386,12 @@ fn noescape_documented_rejections_are_checked_after_instantiation() {
     let source = replace(&blocks[9], "return held[0].value + 1;", "return box.value;")
         + "\nwt via_container(3);";
     rejects(&source, "cannot prove noescape for parameter 'value'");
+}
+
+#[test]
+fn extended_library_documentation_enumerates_permutations() {
+    runnable_examples(
+        include_str!("../docs/library/extended.md"),
+        &[("", "1 1 2\n1 2 1\n2 1 1\n")],
+    );
 }

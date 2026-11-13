@@ -92,7 +92,7 @@ values[0].value=2;
     rejects(
         r#"
 struct Box{value:Int;}
-extern fn opaque(b:Box)->Box{cpp_name:"opaque",code:"Obj<RuskRecord0> opaque(Obj<RuskRecord0> b,Loc){return b;}",}
+extern fn opaque(b:Box)->Box{cpp_name:"opaque",code:"auto opaque(auto b,Loc){return b;}",}
 let b:=Box{value:0};let alias:=opaque(b);
 readonly let r:=1;b.value:=r;alias.value=2;
 "#,

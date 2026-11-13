@@ -8,13 +8,21 @@ fn summary<'a>(dump: &'a str, name: &str) -> &'a str {
     &effects[..effects.find("\n            },").unwrap()]
 }
 fn parameter(summary: &str, index: usize) -> &str {
-    summary
-        .split("ParameterEffects {")
-        .nth(index + 1)
-        .unwrap()
-        .split('}')
-        .next()
-        .unwrap()
+    let body = summary.split("ParameterEffects {").nth(index + 1).unwrap();
+    let mut depth = 1usize;
+    for (offset, c) in body.char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return &body[..offset];
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("unterminated parameter effect summary");
 }
 fn dumps(source: &str, check: impl Fn(&str)) {
     let case = Case::new(source);

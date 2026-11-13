@@ -133,6 +133,7 @@ impl TypedPattern {
 impl Compiler {
     fn resolve_pattern(&mut self, pattern: &Pattern, ty: &str) -> Result<TypedPattern, String> {
         let mut result = TypedPattern::wild(ty, &pattern.span);
+        let ty = access_types::underlying(ty);
         result.kind = match &pattern.kind {
             PatternKind::Literal(wanted, text) => {
                 let wanted = literal_type(wanted, Some(ty));
@@ -259,6 +260,7 @@ impl Compiler {
         Ok(result)
     }
     fn constructor_fields(&self, ty: &str, constructor: &Constructor) -> Vec<String> {
+        let ty = access_types::underlying(ty);
         match constructor {
             Constructor::Variant(index) => self.enums[ty].variants[*index]
                 .1
@@ -274,6 +276,7 @@ impl Compiler {
         }
     }
     fn constructors(&self, ty: &str) -> Option<Vec<Constructor>> {
+        let ty = access_types::underlying(ty);
         if let Some(e) = self.enums.get(ty) {
             Some((0..e.variants.len()).map(Constructor::Variant).collect())
         } else if ty == "Bool" {
@@ -294,6 +297,7 @@ impl Compiler {
         }
     }
     fn format_constructor(&self, ty: &str, constructor: &Constructor, fields: &[String]) -> String {
+        let ty = access_types::underlying(ty);
         match constructor {
             Constructor::Variant(i) => {
                 let name = &self.enums[ty].variants[*i].0.text;

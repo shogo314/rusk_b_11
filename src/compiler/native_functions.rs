@@ -10,6 +10,7 @@ impl Compiler {
         span: &Span,
     ) -> Result<usize, String> {
         self.check_type(&Name {
+            constant: None,
             text: result.into(),
             span: span.clone(),
         })?;
@@ -19,6 +20,7 @@ impl Compiler {
         self.functions.push(Function {
             scope: scopes::ScopeId::ROOT,
             name: Name {
+                constant: None,
                 text: name.into(),
                 span: span.clone(),
             },

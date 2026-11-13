@@ -58,24 +58,43 @@ extern fn dimensions_read_body<T>() -> Vec<T> {
 // The derive role registers automatic operations; the function name is arbitrary.
 extern fn aggregate_copy_body<T>(value: T) -> T {
     derive: "record_copy",
-    code: "Obj<@{T}> @{fn}(const Obj<@{T}>& value,Loc loc){return make_obj<@{T}>(@{T}{@{fields T as F,I}@{boxed_call copy(F)->F}(value->field_@{index I},loc),@{end}});}",
+    code: "Obj<@{T}> @{fn}(const Obj<@{T}>& value,Loc loc){return make_obj<@{T}>(@{T}{@{fields T as F,I}@{boxed_call __copy__(F)->F}(value->field_@{index I},loc),@{end}});}",
 }
 
 extern fn sum_copy_body<T>(value: T) -> T {
     derive: "enum_copy",
-    code: "Obj<@{T}> @{fn}(const Obj<@{T}>& value,[[maybe_unused]] Loc loc){auto snapshot=value->value;switch(rusk_enum_index<@{T}>(snapshot)){@{variants T as V}case @{index V}:{@{fields T variant V as F,I}auto field_@{index I}=@{boxed_call copy(F)->F}(rusk_enum_payload<@{T},@{index V}>(snapshot).field_@{index I},loc);@{end}return std::apply([](auto&&... fields){return rusk_enum_make<@{T},@{index V}>(std::move(fields)...);},std::tuple{@{fields T variant V as F,I}std::move(field_@{index I}),@{end}});}@{end}default:fail(loc,\"invalid enum tag\");}}",
+    code: "Obj<@{T}> @{fn}(const Obj<@{T}>& value,[[maybe_unused]] Loc loc){auto snapshot=value->value;switch(rusk_enum_index<@{T}>(snapshot)){@{variants T as V}case @{index V}:{@{fields T variant V as F,I}auto field_@{index I}=@{boxed_call __copy__(F)->F}(rusk_enum_payload<@{T},@{index V}>(snapshot).field_@{index I},loc);@{end}return std::apply([](auto&&... fields){return rusk_enum_make<@{T},@{index V}>(std::move(fields)...);},std::tuple{@{fields T variant V as F,I}std::move(field_@{index I}),@{end}});}@{end}default:fail(loc,\"invalid enum tag\");}}",
 }
 
 extern fn aggregate_assign_body<T>(target: T, source: T) -> Unit {
     derive: "record_assign",
-    code: "void @{fn}(Obj<@{T}> target,Obj<@{T}> source,Loc loc){auto snapshot=@{rooted_call copy(T)->T}(source,loc);*target=std::move(*snapshot);}",
+    code: "void @{fn}(Obj<@{T}> target,Obj<@{T}> source,Loc loc){auto snapshot=@{rooted_call __copy__(T)->T}(source,loc);auto replacement=*snapshot;*target=std::move(replacement);}",
 }
 extern fn sum_assign_body<T>(target: T, source: T) -> Unit {
     derive: "enum_assign",
-    code: "void @{fn}(Obj<@{T}> target,Obj<@{T}> source,Loc loc){auto snapshot=@{rooted_call copy(T)->T}(source,loc);target->value=std::move(snapshot->value);}",
+    code: "void @{fn}(Obj<@{T}> target,Obj<@{T}> source,Loc loc){auto snapshot=@{rooted_call __copy__(T)->T}(source,loc);auto replacement=snapshot->value;target->value=std::move(replacement);}",
 }
 
 extern fn product_read_body<T>() -> T {
     derive: "tuple_read",
     code: "Obj<@{T}> @{fn}(Loc loc){@{fields T as F,I}auto value_@{index I}=@{boxed_call __read__()->F}(loc);@{end}return make_obj<@{T}>(@{T}{@{fields T as F,I}value_@{index I},@{end}});}",
+}
+
+// Keep the payload snapshots alive even if a field comparison replaces a variant.
+extern fn sum_equal_body<T>(a: T, b: T) -> Bool {
+    derive: "enum_eq",
+    effects: "read_fresh",
+    code: "Obj<bool> @{fn}(Obj<@{T}> a,Obj<@{T}> b,Loc loc){auto left=a->value;auto right=b->value;auto tag=rusk_enum_index<@{T}>(left);if(tag!=rusk_enum_index<@{T}>(right))return make_obj<bool>(false);switch(tag){@{variants T as V}case @{index V}:{@{fields T variant V as F,I}auto x_@{index I}=rusk_enum_payload<@{T},@{index V}>(left).field_@{index I};auto y_@{index I}=rusk_enum_payload<@{T},@{index V}>(right).field_@{index I};if(!@{value_call __eq__(F,F)->Bool}(x_@{index I},y_@{index I},loc))return make_obj<bool>(false);@{end}return make_obj<bool>(true);}@{end}default:fail(loc,\"invalid enum tag\");}}",
+}
+
+extern fn aggregate_hash_body<T>(value: T) -> Int {
+    derive: "record_hash",
+    effects: "read_fresh",
+    code: "Obj<@{Int}> @{fn}(Obj<@{T}> value,Loc loc){std::size_t hash=0;@{fields T as F,I}auto field_@{index I}=value->field_@{index I};auto part_@{index I}=@{value_call __hash__(F)->Int}(field_@{index I},loc);rusk_hash_combine(hash,static_cast<std::size_t>(part_@{index I}));@{end}return make_obj<@{Int}>(static_cast<@{Int}>(hash));}",
+}
+
+extern fn sum_hash_body<T>(value: T) -> Int {
+    derive: "enum_hash",
+    effects: "read_fresh",
+    code: "Obj<@{Int}> @{fn}(Obj<@{T}> value,Loc loc){auto snapshot=value->value;auto tag=rusk_enum_index<@{T}>(snapshot);std::size_t hash=std::hash<std::size_t>{}(tag);switch(tag){@{variants T as V}case @{index V}:{@{fields T variant V as F,I}auto field_@{index I}=rusk_enum_payload<@{T},@{index V}>(snapshot).field_@{index I};auto part_@{index I}=@{value_call __hash__(F)->Int}(field_@{index I},loc);rusk_hash_combine(hash,static_cast<std::size_t>(part_@{index I}));@{end}break;}@{end}default:fail(loc,\"invalid enum tag\");}return make_obj<@{Int}>(static_cast<@{Int}>(hash));}",
 }

@@ -2,8 +2,10 @@ use super::*;
 impl Compiler {
     pub(super) fn ir_types(&self) -> BTreeMap<String, crate::ir::hir::Type> {
         use crate::ir::hir::Type;
-        self.types
+        let mut types: BTreeMap<_, _> = self
+            .types
             .keys()
+            .filter(|name| access_types::inner(name).is_none())
             .map(|name| {
                 let fields = || {
                     self.records[name]
@@ -46,6 +48,14 @@ impl Compiler {
                 };
                 (name.clone(), kind)
             })
-            .collect()
+            .collect();
+        for name in self
+            .types
+            .keys()
+            .filter(|name| access_types::inner(name).is_some())
+        {
+            types.insert(name.clone(), types[access_types::underlying(name)].clone());
+        }
+        types
     }
 }

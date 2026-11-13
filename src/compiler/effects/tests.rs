@@ -92,7 +92,7 @@ extern fn via<T>(x:T)->Bool{
 }
 
 #[test]
-fn native_contracts_wait_for_referenced_operations_without_assuming_call_cycles_are_pure() {
+fn native_contracts_check_dependencies_and_mark_proven_cycles_as_divergent() {
     let standard = Source::standard(crate::frontend::parse(&format!(r#"{TYPES}
 extern fn outer<T>(x:T)->T {{effects:"read_fresh",code:"Obj<@{{T}}> @{{fn}}(Obj<@{{T}}> x,Loc loc){{return @{{call middle(T)->T}}(x,loc);}}",}}
 extern fn middle<T>(x:T)->T {{effects:"read_fresh",code:"Obj<@{{T}}> @{{fn}}(Obj<@{{T}}> x,Loc loc){{return @{{call child(T)->T}}(x,loc);}}",}}
@@ -111,7 +111,7 @@ extern fn checked(x:Int)->Int {{cpp_name:"checked",code:"unused",effects:"checke
         ("fn child(x:Int)->Int{return x;}", "Opaque"),
         ("fn child(x:Int)->Int{emit(x);return 7;}", "Opaque"),
         ("fn child(x:Int)->Int{return checked(x);}", "Opaque"),
-        ("fn child(x:Int)->Int{return outer(x);}", "Opaque"),
+        ("fn child(x:Int)->Int{return outer(x);}", "NativeContract"),
     ] {
         let user = Source::user(
             crate::frontend::parse(
@@ -138,6 +138,9 @@ extern fn checked(x:Int)->Int {{cpp_name:"checked",code:"unused",effects:"checke
                 section.contains(&format!("source: {expected}")),
                 "{definition}\n{hir}"
             );
+            if definition.contains("return outer(x)") {
+                assert!(section.contains("may_diverge: May"), "{section}");
+            }
         }
     }
 }
@@ -147,7 +150,7 @@ fn native_contracts_also_check_captured_callback_dependencies() {
     let standard=Source::standard(crate::frontend::parse(&format!(r#"{TYPES}
 extern fn bridge<F>(f:F)->Int{{effects:"read_fresh",code:"Obj<@{{Int}}> @{{fn}}(Obj<@{{F}}> f,Loc loc){{return @{{invoke F()->Int}}(f,loc);}}",}}
 extern fn touch(x:Int){{cpp_name:"touch",code:"unused",effects:"write_first",}}
-extern fn copy(x:Int)->Int{{cpp_name:"copy_int",code:"unused",effects:"read_fresh",}}
+extern fn __copy__(x:Int)->Int{{cpp_name:"copy_int",code:"unused",effects:"read_fresh",}}
 "#),"standard.rusk").unwrap());
     let derivations = Source::standard(
             crate::frontend::parse(&crate::stdlib::test_source::source("collections/prelude.rusk"), "standard-derivations.rusk")
@@ -298,6 +301,7 @@ fn backend_trust_uses_origin_instead_of_spelling() {
         compiler.functions.push(Function {
             scope: scopes::ScopeId::ROOT,
             name: Name {
+                constant: None,
                 text: "unrelated".into(),
                 span: Span {
                     file: file.into(),

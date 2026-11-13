@@ -1,0 +1,36 @@
+/// Int128から任意精度整数へ明示変換します。
+extern fn BigInt(x: Int128) -> BigInt {
+    code: "Obj<RuskBigInt> rusk_std_big_int_conversion_1(Obj<RuskI128> x,[[maybe_unused]] Loc loc){return make_obj<RuskBigInt>(RuskBigInt::parse(rusk_i128_text(*x),loc));}",
+    cpp_name: "rusk_std_big_int_conversion_1",
+    effects: "read_fresh",
+}
+
+/// Int128へ明示変換します。範囲外は失敗します。
+extern fn Int128(x: BigInt) -> Int128 {
+    code: "Obj<RuskI128> rusk_std_big_int_conversion_2(Obj<RuskBigInt> x,[[maybe_unused]] Loc loc){if(x->words.size()>4)fail(loc,\"integer conversion out of range\");RuskU128 magnitude=0;for(auto i=x->words.size();i>0;--i)magnitude=(magnitude<<32)|x->words[i-1];if(magnitude>(x->negative?rusk_i128_sign_bit:rusk_i128_sign_bit-1))fail(loc,\"integer conversion out of range\");if(x->negative&&magnitude==rusk_i128_sign_bit)return make_obj<RuskI128>(rusk_i128_min);auto value=static_cast<RuskI128>(magnitude);return make_obj<RuskI128>(x->negative?-value:value);}",
+    cpp_name: "rusk_std_big_int_conversion_2",
+    effects: "checked_read_fresh",
+}
+
+/// 0以外の任意精度整数をtrueへ変換します。
+extern fn Bool(x: BigInt) -> Bool {
+    code: "Obj<bool> rusk_std_big_int_conversion_3(Obj<RuskBigInt> x,[[maybe_unused]] Loc loc){return make_obj<bool>(!x->words.empty());}",
+    cpp_name: "rusk_std_big_int_conversion_3",
+    effects: "read_fresh",
+}
+
+/// 任意精度整数が0ならtrueを返します。
+extern fn __not__(x: BigInt) -> Bool {
+    code: "Obj<bool> rusk_std_big_int_conversion_4(Obj<RuskBigInt> x,[[maybe_unused]] Loc loc){return make_obj<bool>(x->words.empty());}",
+    cpp_name: "rusk_std_big_int_conversion_4",
+    effects: "read_fresh",
+}
+
+/// Int128の非負の最大公約数を返します。表現範囲外なら失敗します。
+fn gcd(a: Int128, b: Int128) -> Int128 {
+    return Int128(gcd(BigInt(a), BigInt(b)));
+}
+/// Int128の非負の最小公倍数を返します。表現範囲外なら失敗します。
+fn lcm(a: Int128, b: Int128) -> Int128 {
+    return Int128(lcm(BigInt(a), BigInt(b)));
+}

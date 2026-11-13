@@ -1,0 +1,17 @@
+/// 試し割りで素数か判定します。2未満にはfalseを返します。時間O(sqrt(n))です。
+fn is_prime(value: Int) -> Bool {
+    if value < 2 {
+        return false;
+    }
+    if value % 2 == 0 {
+        return value == 2;
+    }
+    let divisor := 3;
+    while divisor <= value / divisor {
+        if value % divisor == 0 {
+            return false;
+        }
+        divisor += 2;
+    }
+    return true;
+}

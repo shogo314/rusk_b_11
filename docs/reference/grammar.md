@@ -61,10 +61,12 @@ let_statement = { variable_modifier } "let" binding [ ":" type ] [ initializatio
 initialization = ":=" | "=" ;
 binding       = identifier
               | "(" binding "," binding { "," binding } ")" ;
-type          = identifier [ type_arguments ]
+type          = "readonly" type | identifier [ type_arguments ]
               | "(" type "," type { "," type } ")" ;
-type_arguments  = "<" type { "," type } ">" ;
-type_parameters = "<" identifier { "," identifier } ">" ;
+type_argument   = type | [ "-" ] integer_literal | "true" | "false" ;
+type_arguments  = "<" type_argument { "," type_argument } ">" ;
+type_parameter  = identifier [ ":" ("Int" | "Bool") ] ;
+type_parameters = "<" type_parameter { "," type_parameter } ">" ;
 ```
 
 | 例 | 意味 |
@@ -96,7 +98,7 @@ struct_definition   = "struct" identifier [ type_parameters ]
 struct_field        = identifier ":" type ";" ;
 ```
 
-引数には必ず型を付けます。戻り型を省略すると `Unit` です。引数に分解パターン・初期値・デフォルト値は書けません。構造体のフィールド区切りはカンマではなく `;` です。空の構造体は型検査で拒否します。
+引数には必ず型を付けます。戻り型を省略すると `Unit` です。引数に分解パターン・初期値・デフォルト値は書けません。構造体のフィールド区切りはカンマではなく `;` です。空の構造体も使え、`struct Tag {}`で宣言し、`Tag()`で構築します。
 
 次のPointとBoxは、この例で宣言する構造体です。標準で用意されている型名ではありません。
 

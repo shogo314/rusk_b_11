@@ -84,11 +84,11 @@ def main():
             reference_command = ['cargo', 'test', '--locked']
             for test in (
                 'e2e', 'records', 'tuples', 'generics', 'extern_generics', 'extern_callbacks',
-                'library_migration', 'includes', 'data_structures', 'callables', 'higher_order',
+                'library_migration', 'standard_expansion', 'includes', 'data_structures', 'callables', 'higher_order',
                 'beta04_structures', 'beta05', 'pipeline', 'cli', 'format', 'blocks_labels',
                 'enums', 'test_support', 'beta06', 'minmax', 'effects', 'bindings', 'readonly',
                 'readonly_routes', 'documentation', 'api', 'noescape', 'noescape_routes',
-                'heap_aliases', 'numeric', 'overloads',
+                'heap_aliases', 'numeric', 'overloads', 'metadata', 'value_arguments', 'readonly_types', 'hash_reentry',
             ):
                 reference_command += ['--test', test]
             run_stage('Reference backend (no scalar optimization)',

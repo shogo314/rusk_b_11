@@ -1015,7 +1015,7 @@ fn native_fields_resolve_logical_operations_and_keep_stored_unit_objects() {
 extern type Score {cpp_name:"std::int64_t",}
 extern fn score(x:Int)->Score {cpp_name:"score",code:"Obj<std::int64_t> score(Obj<std::int64_t> x,Loc){return x;}",}
 extern fn number(x:Score)->Int {cpp_name:"number",code:"Obj<std::int64_t> number(Obj<std::int64_t> x,Loc){return x;}",}
-extern fn copy(x:Score)->Score {cpp_name:"copy_score",code:"Obj<std::int64_t> copy_score(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x+100);}",}
+extern fn __copy__(x:Score)->Score {cpp_name:"copy_score",code:"Obj<std::int64_t> copy_score(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x+100);}",}
 extern fn same_unit(a:Unit,b:Unit)->Bool {cpp_name:"same_unit",code:"Obj<bool> same_unit(Obj<Unit> a,Obj<Unit> b,Loc){return make_obj<bool>(a==b);}",}
 extern fn clone_fields<T>(value:T)->T {
     code:"Obj<@{T}> @{fn}(Obj<@{T}> value,Loc loc){return make_obj<@{T}>(@{T}{@{fields T as F,I}@{owned_call copy(F)->F}(value->field_@{index I},loc),@{end}});}",
@@ -1149,10 +1149,7 @@ fn native_field_expansions_have_depth_and_work_limits() {
 fn native_variants_copy_payloads_using_logical_operations_under_an_unrelated_name() {
     let source = library::source("collections/prelude.rusk");
     let start = source.find("extern fn sum_copy_body<").unwrap();
-    let end = source[start..]
-        .find("// Standard Option operations")
-        .unwrap()
-        + start;
+    let end = source[start..].find("\n}\n").unwrap() + start + 3;
     let declaration = source[start..end]
         .lines()
         .filter(|line| !line.trim_start().starts_with("derive:"))
@@ -1164,7 +1161,7 @@ fn native_variants_copy_payloads_using_logical_operations_under_an_unrelated_nam
         r#"{declaration}
 extern type Score{{cpp_name:"std::int64_t",}}
 extern fn score(x:Int)->Score{{cpp_name:"score",code:"Obj<std::int64_t> score(Obj<std::int64_t> x,Loc){{return x;}}",}}
-extern fn copy(x:Score)->Score{{cpp_name:"copy_score",code:"Obj<std::int64_t> copy_score(Obj<std::int64_t> x,Loc){{return make_obj<std::int64_t>(*x+100);}}",}}
+extern fn __copy__(x:Score)->Score{{cpp_name:"copy_score",code:"Obj<std::int64_t> copy_score(Obj<std::int64_t> x,Loc){{return make_obj<std::int64_t>(*x+100);}}",}}
 extern fn number(x:Score)->Int{{cpp_name:"number",code:"Obj<std::int64_t> number(Obj<std::int64_t> x,Loc){{return x;}}",}}
 extern fn same_unit(a:Unit,b:Unit)->Bool{{cpp_name:"same_unit",code:"Obj<bool> same_unit(Obj<Unit> a,Obj<Unit> b,Loc){{return make_obj<bool>(a==b);}}",}}
 struct V{{value:Int;}}struct F{{value:Int;}}struct I{{value:Int;}}
@@ -1373,7 +1370,7 @@ fn native_arguments_keep_logical_types_original_indices_and_callback_inference()
 extern type Score {cpp_name:"std::int64_t",}
 extern fn score(x:Int)->Score {cpp_name:"arg_score",code:"Obj<std::int64_t> arg_score(Obj<std::int64_t> x,Loc){return x;}",}
 extern fn number(x:Score)->Int {cpp_name:"arg_number",code:"Obj<std::int64_t> arg_number(Obj<std::int64_t> x,Loc){return x;}",}
-extern fn copy(x:Score)->Score {cpp_name:"arg_copy",code:"Obj<std::int64_t> arg_copy(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x+100);}",}
+extern fn __copy__(x:Score)->Score {cpp_name:"arg_copy",code:"Obj<std::int64_t> arg_copy(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x+100);}",}
 extern fn tail<arguments1,B>(head:arguments1,value:B)->B {
     code:"Obj<@{B}> @{fn}(@{arguments as P,I}Obj<@{P}> d@{index I},@{end}Loc loc){@{arguments from 1 as P,I}return @{boxed_call copy(...arguments 1)->P}(d@{index I},loc);@{end}}",
 }

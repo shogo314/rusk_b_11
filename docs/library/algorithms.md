@@ -114,10 +114,9 @@ sort_by_comp(points, (a: Point, b: Point) => a.x > b.x);
 
 ## 比較関数付き優先度キュー
 
-`examples/beta04/library/priority_queue.rusk` を `include` します。このページのパスはリポジトリ直下のソースから使う想定です。
+`PriorityQueue`は`data_structures/priority-queue.rusk`で定義され、自動読み込みされます。
 
 ```rusk
-include "examples/beta04/library/priority_queue.rusk";
 let queue := PriorityQueue([3, 1, 2], (a: Int, b: Int) => a < b);
 queue.push(0);
 wt queue.top(), queue.pop(), queue.pop(); // 0 0 1
@@ -131,14 +130,13 @@ wt queue.top(), queue.pop(), queue.pop(); // 0 0 1
 | `pop(queue) -> T` | 最優先のオブジェクトを削除して共有で返す。O(log N) |
 | `len(queue) -> Int` / `is_empty(queue) -> Bool` | 個数・空かどうか。O(1) |
 
-`compare(a, b)` が真なら `a` を優先します。`a < b` で最小、`a > b` で最大の値を先に取り出せます。同順位の取り出し順は保証しません。比較は厳密弱順序が必要で、キューに要素がある間に捕捉状態の変更などで順序を変えないでください。
+`compare(a, b)` が真なら `a` を優先します。`a < b` で最小、`a > b` で最大の値を先に取り出せます。同順位の取り出し順は保証しません。比較中にキュー自身を変更しないでください。比較は厳密弱順序が必要で、キューに要素がある間に捕捉状態の変更などで順序を変えないでください。
 
-`top`・`pop` は空なら位置付きエラーです。現在の`top`はコピーを返し、取得結果を更新しても内部の値を変更しない規則です。readonly注釈の有無によって返却方式は変わりません。内部フィールドは通常の構造体ですが、直接変更するとヒープの前提が崩れます。`copy(queue)` は値と比較関数の捕捉環境をコピーします。
+`top`・`pop` は空なら位置付きエラーです。現在の`top`はコピーを返し、取得結果を更新しても内部の値を変更しない規則です。readonly注釈の有無によって返却方式は変わりません。内部フィールドは通常の構造体ですが、直接変更するとヒープの前提が崩れます。`copy(queue)` は値と比較関数の捕捉環境をコピーします。これらは各型の`__copy__`に従うため、手動コピーが共有を残す場合は独立性もその実装に従います。
 
 空から作る場合も、配列の要素型を明示します。次はIntを格納する独立した実行例です。
 
 ```rusk
-include "examples/beta04/library/priority_queue.rusk";
 let empty: Vec<Int> := [];
 let queue := PriorityQueue(empty, (a: Int, b: Int) => a < b);
 queue.push(3);
@@ -150,10 +148,9 @@ wt queue.pop(), queue.pop();
 
 ## 演算を指定するセグメント木
 
-`examples/beta04/library/segment_tree.rusk` を `include` します。
+`SegTree`は`data_structures/segtree.rusk`で定義され、自動読み込みされます。
 
 ```rusk
-include "examples/beta04/library/segment_tree.rusk";
 let seg := SegTree([1, 2, 3, 4], 0, (a: Int, b: Int) => a + b);
 wt seg.prod(1, 4); // 9
 seg.set(2, 10);
@@ -180,3 +177,18 @@ wt seg.min_left(4, (sum: Int) => sum <= 14); // 2
 ## 配列の末尾から取り出す
 
 `pop_back(a: Vec<T>) -> T`は、末尾の格納先を削除して、そのオブジェクトへの共有を返します。既存の共有はそのまま生存します。空配列では位置付きエラー、走査中に使った場合は構造変更として検出します。
+
+
+## examplesから移したアルゴリズム {#migrated-algorithms}
+
+以下も標準で自動読み込みされ、includeは不要です。分野とファイル名は[shogo-library](https://github.com/shogo314/shogo-library)に合わせています。
+
+| 定義ファイル | 関数 | 前提・計算量 |
+|---|---|---|
+| `math/modular-arithmetic.rusk` | `pow_mod(a, n, modulus)` | `n >= 0`・`modulus > 0`。O(log n)。Int128で積を計算し、Int範囲の正の法を扱う |
+| `math/prime.rusk` | `is_prime(value)` | 奇数による試し割り。2未満はfalse。O(sqrt(n))。大きい素数の高速判定ではない |
+| `string/z-algorithm.rusk` | `z_algorithm(text)` | 各接尾辞と全体の共通接頭辞長をVec<Int>で返す。O(n)。空文字列にも対応 |
+| `dp/longest-common-subsequence.rusk` | `longest_common_subsequence(x, y)` | 文字列の最長共通部分列の長さ。時間O(nm)・領域O(m) |
+| `graph/grid-graph.rusk` | `grid_shortest_path(grid, h, w)` | `#`を壁とする上下左右移動。左上から右下までの距離、到達不能なら-1。正の高さ・幅と全行の幅一致が必要。O(hw) |
+
+優先度付きキュー・Union-Find・Fenwick木・セグメント木も、examplesにあった実装を標準へ移しています。Fenwick木は`FenwickTree`、点加算は`apply`、区間集計は`prod`、先頭からの集計は`prefix_prod`です。加算用の`SumSegTree`と演算を渡す`SegTree`は別の型として残しています。

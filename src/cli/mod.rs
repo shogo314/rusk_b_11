@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(
     name = "rusk",
-    version,
+    version = crate::metadata::VERSION,
     about = "Compile, format, and inspect Rusk programs",
     arg_required_else_help = true
 )]

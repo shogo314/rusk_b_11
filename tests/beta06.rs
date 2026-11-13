@@ -337,7 +337,7 @@ extern symbol observation{code:"std::int64_t trace_value=0;",}
 extern type Score{cpp_name:"std::int64_t",}
 extern fn score(n:Int)->Score{cpp_name:"make_score",code:"Obj<std::int64_t> make_score(Obj<std::int64_t> n,Loc){return n;}",}
 extern fn number(n:Score)->Int{cpp_name:"score_number",code:"Obj<std::int64_t> score_number(Obj<std::int64_t> n,Loc){return n;}",}
-extern fn copy(n:Score)->Score{cpp_name:"score_copy",code:"Obj<std::int64_t> score_copy(Obj<std::int64_t> n,Loc){trace_value=trace_value*10+*n;return make_obj<std::int64_t>(*n);}",}
+extern fn __copy__(n:Score)->Score{cpp_name:"score_copy",code:"Obj<std::int64_t> score_copy(Obj<std::int64_t> n,Loc){trace_value=trace_value*10+*n;return make_obj<std::int64_t>(*n);}",}
 extern fn trace()->Int{cpp_name:"score_trace",code:"Obj<std::int64_t> score_trace(Loc){return make_obj<std::int64_t>(trace_value);}",}
 let a:=score(1);let b:=score(2);let f:=()=>number(b)+number(a);
 let detached=f;wt trace(),detached();

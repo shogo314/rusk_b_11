@@ -232,6 +232,7 @@ pub(crate) struct Function {
 }
 #[derive(Debug)]
 pub(crate) struct Program {
+    pub readonly_members: std::collections::BTreeSet<String>,
     pub types: std::collections::BTreeMap<String, Type>,
     pub functions: Vec<Function>,
     pub main: Body,

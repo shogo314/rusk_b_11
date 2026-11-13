@@ -1,6 +1,6 @@
 # 標準ライブラリ
 
-基本の標準ライブラリは自動で読み込まれます。追加のデータ構造は、各ページに示すファイルを`include`して使います。メソッド専用の定義構文はなく、通常の`a.f(x)`は`f(a, x)`と同じ候補から解決します。
+基本の標準ライブラリは自動で読み込まれます。データ構造も自動読み込みされます。メソッド専用の定義構文はなく、通常の`a.f(x)`は`f(a, x)`と同じ候補から解決します。
 
 型全体とコピー・比較・入出力の可否は[型の一覧](../reference/types.md)、算術・論理・最小最大などの記号は[演算子](../reference/operators.md)を参照してください。
 
@@ -10,10 +10,12 @@
 
 | 目的 | ページ |
 |---|---|
+| BigInt・IntArray・ビット列・Deque・Array・Slice・整列コンテナ・順列 | [数値・配列・整列コンテナと順列](extended.md) |
 | トークン・配列・タプル入力、EOF、行入力、出力形式 | [入出力](input-output.md) |
 | Vec・Str、添字、連結、コピー、基本のソート・探索、型変換 | [配列と文字列](sequences.md) |
 | Dict・Set、find、try_read、不在を返す操作 | [辞書・集合とOption](collections.md) |
 | map・filter、集計、短絡探索、キー・比較関数付きソート、PriorityQueue・SegTree | [関数を使う操作とデータ構造](algorithms.md) |
+| 剰余累乗・素数判定・Z-algorithm・LCS・グリッドBFS | [分野別アルゴリズム](algorithms.md#migrated-algorithms) |
 | Union-Find、Fenwick Tree、区間和セグメント木 | [Ruskで記述したデータ構造](data-structures.md) |
 
 ## 型から探す
@@ -28,7 +30,7 @@
 | Option | Some・None、存在判定、共有取得、既定値、match | [Option](../reference/expressions.md) |
 | Dict・Set | 登録・検索・削除、キー・値の取得、走査 | [辞書・集合](collections.md) |
 | Range・遅延反復 | for、map・filter、to_vec、all・any、fold・scan | [反復型](../reference/types.md)・[走査と集計](algorithms.md) |
-| UnionFind・Fenwick・SumSegTree | 併合、点更新、区間集計 | [基本データ構造](data-structures.md) |
+| UnionFind・FenwickTree・SumSegTree | 併合、点更新、区間集計 | [基本データ構造](data-structures.md) |
 | PriorityQueue・SegTree | 優先度付き取り出し、演算を指定する区間集計 | [関数付きデータ構造](algorithms.md) |
 
 型引数と必要な操作の条件は各ページに記載します。構造体・enum・外部型に用意される操作と、利用者が追加する操作は[型の一覧](../reference/types.md#user-types)を参照してください。
@@ -37,7 +39,7 @@
 
 引数・戻り値・コンテナへの格納は共有が基本です。`copy`とコピー宣言`let x = value;`は内側までコピーします。`sorted`は外側だけを新しくし、要素は共有します。`fold`は初期値をコピーし、`scan`は初期値と各結果をコピーして保存します。操作ごとの差は各APIに記載します。
 
-型が格納できることと、その型を比較・出力・ハッシュ・コピーできることは別です。`Vec<T>`はUnitや外部型も格納できますが、使う操作に必要な関数は通常の候補解決で見つかる必要があります。構造体の比較・出力は自動生成しません。
+型が格納できることと、その型を比較・出力・ハッシュ・コピーできることは別です。`Vec<T>`はUnitや外部型も格納できますが、使う操作に必要な関数は通常の候補解決で見つかる必要があります。struct・enumではコピー・等値比較・ハッシュの既定実装を生成します。順序比較と出力は必要に応じて定義します。
 
 ## 基本型とフック
 
@@ -62,4 +64,4 @@
 
 共有ABI、型・操作の参照、構造の導出、効果情報の検査を共通の基盤で扱います。配置は[開発ガイド](../development/index.md)、コンパイラとの分担は[処理系とライブラリの境界](../development/architecture.md)を参照してください。
 
-今後の数値型・スライス・走査APIは[将来の方針](../future.md)にまとめています。
+今後の拡張方針は[将来の方針](../future.md)にまとめています。

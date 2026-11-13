@@ -1,28 +1,6 @@
 use super::*;
 
-pub(super) fn type_parts(ty: &str) -> Option<(&str, Vec<&str>)> {
-    let (base, rest) = ty.split_once('<')?;
-    let inner = rest.strip_suffix('>')?;
-    let mut depth = 0usize;
-    let mut start = 0;
-    let mut parts = vec![];
-    for (index, c) in inner.char_indices() {
-        match c {
-            '<' => depth += 1,
-            '>' => depth = depth.checked_sub(1)?,
-            ',' if depth == 0 => {
-                parts.push(&inner[start..index]);
-                start = index + 1;
-            }
-            _ => {}
-        }
-    }
-    if depth != 0 {
-        return None;
-    }
-    parts.push(&inner[start..]);
-    Some((base, parts))
-}
+pub(super) use crate::frontend::ast::type_parts_text as type_parts;
 
 impl Compiler {
     pub(super) fn specialize_tuple(&mut self, name: &Name) -> Result<(), String> {
@@ -34,12 +12,14 @@ impl Compiler {
         let mut fields = vec![];
         for (index, ty) in types.iter().enumerate() {
             let ty = Name {
+                constant: None,
                 text: (*ty).into(),
                 span: name.span.clone(),
             };
             self.check_type(&ty)?;
             fields.push((
                 Name {
+                    constant: None,
                     text: index.to_string(),
                     span: name.span.clone(),
                 },
@@ -73,6 +53,28 @@ impl Compiler {
         let mut values = vec![];
         for (index, item) in items.iter().enumerate() {
             values.push(self.expr(item, hints.as_ref().and_then(|h| h.get(index).copied()))?);
+        }
+        if let Some(hints) = &hints
+            && hints.len() == values.len()
+        {
+            let fields = hints
+                .iter()
+                .zip(&values)
+                .map(|(hint, value)| {
+                    if access_types::inner(hint).is_some() && access_types::same(hint, &value.ty) {
+                        (*hint).to_string()
+                    } else {
+                        value.ty.clone()
+                    }
+                })
+                .collect::<Vec<_>>();
+            let ty = format!("Tuple<{}>", fields.join(","));
+            self.check_type(&Name {
+                constant: None,
+                text: ty.clone(),
+                span: span.clone(),
+            })?;
+            return Ok(self.emit(&ty, Rvalue::Aggregate(values)));
         }
         self.pack_tuple(values, span)
     }
@@ -325,6 +327,7 @@ impl Compiler {
 
     fn pack_tuple(&mut self, values: Vec<Value>, span: &Span) -> Result<Value, String> {
         let name = Name {
+            constant: None,
             text: format!(
                 "Tuple<{}>",
                 values

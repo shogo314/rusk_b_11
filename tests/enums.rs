@@ -260,10 +260,8 @@ fn invalid_enums_patterns_and_inference_have_source_locations() {
             "enum E { A(Int) } let x:=E::A(1);match x{A(n)=>{wt n;}}wt n;",
             "unknown",
         ),
-        ("enum E { A(E) }", "recursive enum"),
-        ("struct R{e:E;} enum E{A(R)}", "recursive enum"),
-        ("enum E<T>{A(E<Vec<T>>)} let x:E<Int>;", "recursive enum"),
-        ("enum E<T>{A(E<(T,T)>)} let x:E<Int>;", "recursive enum"),
+        ("enum E<T>{A(E<Vec<T>>)} let x:E<Int>;", "limit"),
+        ("enum E<T>{A(E<(T,T)>)} let x:E<Int>;", "limit"),
         ("enum Option<T>{Other(T)}", "duplicate type"),
     ];
     for (source, message) in cases {
@@ -305,7 +303,7 @@ extern fn score(n:Int)->Score {
     cpp_name:"make_score",
     code:"Obj<std::int64_t> make_score(Obj<std::int64_t> n,Loc){return n;}",
 }
-extern fn copy(n:Score)->Score {
+extern fn __copy__(n:Score)->Score {
     cpp_name:"copy_score",
     code:"Obj<std::int64_t> copy_score(Obj<std::int64_t> n,Loc){copy_trace=copy_trace*10+*n;return make_obj<std::int64_t>(*n);}",
 }

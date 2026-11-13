@@ -1,18 +1,10 @@
 mod support;
 use support::Case;
-fn library(file: &str) -> String {
-    format!(
-        "include {:?};\n",
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("examples/beta04/library")
-            .join(file)
-    )
-}
+
 #[test]
 fn heap_and_segment_tree_support_structs_and_noncommutative_operations() {
-    let source = library("priority_queue.rusk")
-        + &library("segment_tree.rusk")
-        + r#"
+    let source = String::from(
+        r#"
 struct Item{priority:Int;name:Str;}
 let item:=Item{priority:2,name:"b"};let items:Vec<Item>:=[];
 let queue:=PriorityQueue(items,(a:Item,b:Item)=>a.priority<b.priority);
@@ -25,7 +17,8 @@ assert(words.min_left(4,(s:Str)=>!s.contains("cd"))==3);
 let detached=words;words.set(1,"X");wt words.prod(0,4),detached.prod(0,4);
 let empty:Vec<Int>:=[];let seg:=SegTree(empty,0,(a:Int,b:Int)=>a+b);
 wt seg.prod(0,0),seg.max_right(0,(x:Int)=>true),seg.min_left(0,(x:Int)=>true);
-"#;
+"#,
+    );
     let case = Case::new(&source);
     let out = case.run("");
     assert!(
@@ -40,8 +33,8 @@ wt seg.prod(0,0),seg.max_right(0,(x:Int)=>true),seg.min_left(0,(x:Int)=>true);
 }
 #[test]
 fn segment_tree_boundaries_match_naive_scans_after_random_updates() {
-    let source = library("segment_tree.rusk")
-        + r#"
+    let source = String::from(
+        r#"
 in count:Int;
 let seg:=SegTree([0;23],0,(a:Int,b:Int)=>a+b);let limit:=0;let predicate:=(x:Int)=>x<=limit;
 for step in 0..count {
@@ -49,7 +42,8 @@ for step in 0..count {
     wt seg.max_right(bound,predicate),seg.min_left(bound,predicate);
     if step%15==0 {wt seg.prod(0,23);}
 }
-"#;
+"#,
+    );
     let mut input = String::from("180\n");
     let mut values = [0i64; 23];
     let mut seed = 314159265u64;
@@ -88,8 +82,8 @@ for step in 0..count {
 }
 #[test]
 fn heap_matches_a_sorted_multiset() {
-    let mut source = library("priority_queue.rusk")
-        + "let empty:Vec<Int>:=[];let q:=PriorityQueue(empty,(a:Int,b:Int)=>a<b);\n";
+    let mut source =
+        String::from("let empty:Vec<Int>:=[];let q:=PriorityQueue(empty,(a:Int,b:Int)=>a<b);\n");
     let mut values = vec![];
     let mut expected = String::new();
     let mut seed = 7u64;
@@ -122,12 +116,11 @@ fn heap_matches_a_sorted_multiset() {
 #[test]
 fn empty_pops_and_invalid_search_conditions_fail() {
     for source in [
-        library("priority_queue.rusk")
-            + "let a:Vec<Int>:=[];let q:=PriorityQueue(a,(a:Int,b:Int)=>a<b);q.pop();",
-        library("priority_queue.rusk")
-            + "let a:Vec<Int>:=[];let q:=PriorityQueue(a,(a:Int,b:Int)=>a<b);q.top();",
-        library("segment_tree.rusk")
-            + "let seg:=SegTree([1],0,(a:Int,b:Int)=>a+b);wt seg.max_right(0,(x:Int)=>false);",
+        String::from("let a:Vec<Int>:=[];let q:=PriorityQueue(a,(a:Int,b:Int)=>a<b);q.pop();"),
+        String::from("let a:Vec<Int>:=[];let q:=PriorityQueue(a,(a:Int,b:Int)=>a<b);q.top();"),
+        String::from(
+            "let seg:=SegTree([1],0,(a:Int,b:Int)=>a+b);wt seg.max_right(0,(x:Int)=>false);",
+        ),
         "let a:Vec<Int>:=[];a.pop_back();".into(),
     ] {
         let out = Case::new(&source).run("");

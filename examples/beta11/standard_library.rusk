@@ -1,0 +1,31 @@
+// 標準ライブラリ拡充の実行例。
+let input := [2, 1, 1];
+for row in permutations(input) {
+    wt row;
+}
+wt input;
+let integer := BigInt("123456789012345678901234567890");
+wt integer * BigInt(10), BigInt(-7) / BigInt(3), BigInt(-7) % BigInt(3);
+let packed := IntArray([3, 1, 2]);
+packed[0] := 4;
+packed.sort();
+wt packed, packed.sum();
+let bits := Bits::<5>("10101");
+wt bits << 1, bits.count();
+let queue := Deque([2, 3]);
+queue.push_front(1);
+wt queue.to_vec(), queue.pop_back();
+let array := Array::<Int, 3>([1, 2, 3]);
+let view := slice(array, 1, 3);
+view[0] = 8;
+wt array.to_vec(), view.copy_to_vec();
+let set := MultiSet::<Int>();
+set.insert(3);
+set.insert(1);
+set.insert(3);
+wt set.to_vec(), set.count(3);
+let table := OrderedDict::<Int, Str>();
+table.set(2, "b");
+table.set(1, "a");
+wt table.keys(), table.values();
+wt gcd(24, 18), lcm(24, 18), partial_sum([1, 2, 3]);

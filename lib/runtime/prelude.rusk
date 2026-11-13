@@ -18,3 +18,15 @@ extern symbol __runtime_aggregation__ {
     code_file: "aggregation.hpp",
     depends: "__runtime_iter_adapters__",
 }
+extern symbol __runtime_big_int__ {
+    code_file: "big_int.hpp",
+    depends: "__runtime_collections__",
+}
+extern symbol __runtime_extended_sequences__ {
+    code_file: "extended_sequences.hpp",
+    depends: "__runtime_aggregation__",
+}
+extern symbol __runtime_ordered__ {
+    code_file: "ordered_containers.hpp",
+    depends: "__runtime_collections__",
+}

@@ -249,7 +249,7 @@ pub(super) fn substitute(text: &str, bindings: &BTreeMap<String, String>) -> Str
             }
         }
     }
-    result
+    crate::frontend::ast::canonical_type(&result)
 }
 pub(super) fn unify(
     pattern: &str,
@@ -257,42 +257,123 @@ pub(super) fn unify(
     parameters: &[Name],
     bindings: &mut BTreeMap<String, String>,
 ) -> bool {
-    if parameters.iter().any(|p| p.text == pattern) {
-        if let Some(known) = bindings.get(pattern) {
-            return known == actual;
+    fn match_type(
+        pattern: &str,
+        actual: &str,
+        parameters: &[Name],
+        bindings: &mut BTreeMap<String, String>,
+        root: bool,
+    ) -> bool {
+        if root && let Some(base) = access_types::inner(pattern) {
+            return match_type(
+                base,
+                access_types::underlying(actual),
+                parameters,
+                bindings,
+                true,
+            );
         }
-        bindings.insert(pattern.into(), actual.into());
-        return true;
+        if let Some(parameter) = parameters.iter().find(|p| p.text == pattern) {
+            if actual != pattern {
+                match &parameter.constant {
+                    Some(kind) if constant_kind(actual) != Some(kind.as_str()) => return false,
+                    None if constant_kind(actual).is_some() => return false,
+                    _ => {}
+                }
+            }
+            if let Some(known) = bindings.get(pattern) {
+                return if root {
+                    access_types::same(known, actual)
+                } else {
+                    known == actual
+                };
+            }
+            bindings.insert(pattern.into(), actual.into());
+            return true;
+        }
+        let actual = if root {
+            access_types::underlying(actual)
+        } else {
+            actual
+        };
+        match (type_parts(pattern), type_parts(actual)) {
+            (Some((a, pa)), Some((b, pb))) if a == b && pa.len() == pb.len() => pa
+                .iter()
+                .zip(pb)
+                .all(|(p, a)| match_type(p, a, parameters, bindings, false)),
+            _ => pattern == actual,
+        }
     }
-    match (type_parts(pattern), type_parts(actual)) {
-        (Some((a, pa)), Some((b, pb))) if a == b && pa.len() == pb.len() => pa
-            .iter()
-            .zip(pb)
-            .all(|(p, a)| unify(p, a, parameters, bindings)),
-        _ => pattern == actual,
+    match_type(pattern, actual, parameters, bindings, true)
+}
+pub(super) fn constant_kind(text: &str) -> Option<&'static str> {
+    if text == "true" || text == "false" {
+        Some("Bool")
+    } else if text.parse::<i64>().is_ok() {
+        Some("Int")
+    } else {
+        None
     }
+}
+pub(super) fn validate_bindings(
+    parameters: &[Name],
+    bindings: &BTreeMap<String, String>,
+    span: &Span,
+) -> Result<(), String> {
+    for parameter in parameters {
+        if let Some(value) = bindings.get(&parameter.text) {
+            match &parameter.constant {
+                Some(kind) if constant_kind(value) != Some(kind.as_str()) => {
+                    return Err(span.error(format!(
+                        "value argument '{}' requires a {} constant",
+                        parameter.text, kind
+                    )));
+                }
+                None if constant_kind(value).is_some() => {
+                    return Err(span.error(format!(
+                        "type argument '{}' requires a type",
+                        parameter.text
+                    )));
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
 }
 pub(super) fn parameters_valid(parameters: &[Name]) -> Result<(), String> {
     let mut names = BTreeSet::new();
     for parameter in parameters {
+        if parameter
+            .constant
+            .as_deref()
+            .is_some_and(|kind| kind != "Int" && kind != "Bool")
+        {
+            return Err(parameter
+                .span
+                .error("value parameters support only Int and Bool"));
+        }
         if !names.insert(&parameter.text) {
             return Err(parameter.span.error("duplicate type parameter"));
         }
     }
     Ok(())
 }
-fn explicit_bindings(name: &str, parameters: &[Name]) -> Option<BTreeMap<String, String>> {
+pub(super) fn explicit_bindings(
+    name: &str,
+    parameters: &[Name],
+) -> Option<BTreeMap<String, String>> {
     if let Some((_, arguments)) = type_parts(name) {
         if arguments.len() != parameters.len() {
             return None;
         }
-        Some(
-            parameters
-                .iter()
-                .zip(arguments)
-                .map(|(p, a)| (p.text.clone(), a.into()))
-                .collect(),
-        )
+        let bindings = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(p, a)| (p.text.clone(), a.into()))
+            .collect();
+        validate_bindings(parameters, &bindings, &parameters.first()?.span).ok()?;
+        Some(bindings)
     } else {
         Some(BTreeMap::new())
     }
@@ -375,6 +456,15 @@ impl Compiler {
         parameters_valid(&definition.parameters)?;
         let mut arguments = BTreeSet::new();
         for (name, _) in &definition.arguments {
+            if definition
+                .parameters
+                .iter()
+                .any(|p| p.constant.is_some() && p.text == name.text)
+            {
+                return Err(name
+                    .span
+                    .error("runtime parameter conflicts with value parameter"));
+            }
             if !arguments.insert(&name.text) {
                 return Err(name.span.error("duplicate parameter"));
             }
@@ -407,8 +497,14 @@ impl Compiler {
             .zip(arguments)
             .map(|(p, a)| (p.text.clone(), a.into()))
             .collect();
-        for ty in bindings.values() {
+        validate_bindings(&template.parameters, &bindings, &name.span)?;
+        for parameter in &template.parameters {
+            if parameter.constant.is_some() {
+                continue;
+            }
+            let ty = &bindings[&parameter.text];
             self.check_type(&Name {
+                constant: None,
                 text: ty.clone(),
                 span: name.span.clone(),
             })?;
@@ -420,6 +516,7 @@ impl Compiler {
                 (
                     field.clone(),
                     Name {
+                        constant: None,
                         text: substitute(&ty.text, &bindings),
                         span: ty.span.clone(),
                     },
@@ -479,9 +576,14 @@ impl Compiler {
                     .enumerate()
                     .filter(|(i, f)| {
                         !self.generic_calls.contains_key(i)
+                            && self.aggregate_candidate(*i, arguments)
                             && scopes.contains(&f.scope)
                             && f.name.text == lookup_name
-                            && f.params == arguments
+                            && f.params.len() == arguments.len()
+                            && f.params
+                                .iter()
+                                .zip(arguments)
+                                .all(|(p, a)| access_types::same(p, a))
                     })
                     .map(|(_, f)| (0, f.result.clone())),
             );
@@ -606,7 +708,7 @@ impl Compiler {
                 && !self.generic_calls.contains_key(&id)
             {
                 found = true;
-                if function.result == expected {
+                if access_types::same(&function.result, expected) {
                     return true;
                 }
             }
@@ -660,7 +762,7 @@ impl Compiler {
                     && f.params
                         .iter()
                         .zip(known)
-                        .all(|(ty, value)| ty == &value.ty)
+                        .all(|(ty, value)| access_types::same(ty, &value.ty))
                 {
                     hints.insert(f.params[known.len()].clone());
                 }
@@ -722,7 +824,11 @@ impl Compiler {
             && let Some((_, arguments)) = type_parts(name)
         {
             for ty in arguments {
+                if constant_kind(ty).is_some() {
+                    continue;
+                }
                 self.check_type(&Name {
+                    constant: None,
                     text: ty.into(),
                     span: span.clone(),
                 })?;
@@ -776,6 +882,17 @@ impl Compiler {
             let Some(mut bindings) = explicit_bindings(name, &f.parameters) else {
                 continue;
             };
+            if return_selected(base)
+                && let Some(expected) = expected
+                && !unify(
+                    f.result.as_ref().map_or("Unit", |r| r.text.as_str()),
+                    expected,
+                    &f.parameters,
+                    &mut bindings,
+                )
+            {
+                continue;
+            }
             if f.arguments
                 .iter()
                 .zip(args)
@@ -806,11 +923,12 @@ impl Compiler {
         &mut self,
         selection: SelectedGeneric,
         name: &str,
-        args: &[Value],
+        _args: &[Value],
         span: &Span,
     ) -> Result<usize, String> {
         let SelectedGeneric { template, bindings } = selection;
         let definition = self.generic_functions[template].clone();
+        validate_bindings(&definition.parameters, &bindings, span)?;
         let type_arguments = definition
             .parameters
             .iter()
@@ -828,19 +946,56 @@ impl Compiler {
             .as_ref()
             .map_or("Unit".into(), |ty| substitute(&ty.text, &bindings));
         self.check_type(&Name {
+            constant: None,
             text: result.clone(),
             span: span.clone(),
         })?;
         let mut body = definition.body.clone();
         if let Some(body) = &mut body {
             substitute_statement(body, &bindings);
+            if let Stmt::Block(statements, _) = body.as_mut() {
+                for parameter in definition
+                    .parameters
+                    .iter()
+                    .rev()
+                    .filter(|p| p.constant.is_some())
+                {
+                    let mut declared = DeclaredName::plain(parameter.clone());
+                    declared.binding = Some(crate::frontend::ast::BindingAnnotation {
+                        mode: BindingMode::Fixed,
+                        span: parameter.span.clone(),
+                    });
+                    declared.access = Some(crate::frontend::ast::AccessAnnotation {
+                        mode: crate::frontend::ast::AccessMode::Readonly,
+                        span: parameter.span.clone(),
+                    });
+                    statements.insert(
+                        0,
+                        Stmt::Let(
+                            Binding::Name(declared),
+                            None,
+                            Some(Initializer::Shared(Expr {
+                                span: parameter.span.clone(),
+                                kind: ExprKind::Literal(
+                                    parameter.constant.clone().unwrap(),
+                                    bindings[&parameter.text].clone(),
+                                ),
+                            })),
+                        ),
+                    );
+                }
+            }
         }
         let index = self.functions.len();
         let cpp = format!("rusk_generic_{index}");
         self.functions.push(Function {
             scope: definition.scope,
             name: definition.name.clone(),
-            params: args.iter().map(|v| v.ty.clone()).collect(),
+            params: definition
+                .arguments
+                .iter()
+                .map(|(_, ty)| substitute(&ty.text, &bindings))
+                .collect(),
             result,
             cpp: cpp.clone(),
             code: String::new(),

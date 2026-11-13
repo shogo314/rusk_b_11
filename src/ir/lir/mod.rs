@@ -298,12 +298,14 @@ pub(crate) struct ProgramFunction {
 }
 #[derive(Debug)]
 pub(crate) struct Program {
+    pub readonly_members: std::collections::BTreeSet<String>,
     pub types: BTreeMap<String, hir::Type>,
     pub functions: Vec<ProgramFunction>,
     pub main: Function,
 }
 pub(crate) fn lower_program(program: &hir::Program) -> Program {
     Program {
+        readonly_members: program.readonly_members.clone(),
         types: program.types.clone(),
         functions: program
             .functions
@@ -345,6 +347,13 @@ impl Program {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        if self
+            .readonly_members
+            .iter()
+            .any(|ty| !self.types.contains_key(ty))
+        {
+            return Err("unknown readonly member type".into());
+        }
         for (id, f) in self.functions.iter().enumerate() {
             if f.id != id
                 || !self.types.contains_key(&f.result)

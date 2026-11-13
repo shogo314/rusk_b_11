@@ -1,6 +1,6 @@
 //! Per-function native semantics, separate from whole-program output requests.
 use super::*;
-use crate::analysis::effects::Summary;
+use crate::analysis::effects::{Effect, Summary};
 use crate::native::{abi::UnitBridge, effects::composition::Dependency, lowering::Lowering};
 
 #[derive(Default)]
@@ -29,8 +29,12 @@ impl Compiler {
         &self,
         id: usize,
         summaries: &[Summary],
+        recursive: bool,
     ) -> Option<Summary> {
-        let base = self.native_environment_contract(id)?;
+        let mut base = self.native_environment_contract(id)?;
+        if recursive {
+            base.may_diverge = Effect::May;
+        }
         let owner_keys = self.native_capture_keys(id);
         let direct = self.native_dependencies(id).cloned().unwrap_or_default();
         let mapped = self.native_mappings(id);
@@ -76,9 +80,17 @@ impl Compiler {
                     [self.functions[dependency].params.len() + index];
                 let parent = &mut result.parameters[parameter];
                 parent.read = parent.read.max(child.read);
+                if child.write != Effect::No || child.structural != Effect::No {
+                    parent.root_only = false;
+                    parent.write_paths = None;
+                }
                 parent.write = parent.write.max(child.write);
                 parent.structural = parent.structural.max(child.structural);
                 parent.escape = parent.escape.max(child.escape);
+                if child.retained != Effect::No {
+                    parent.readonly_sealed = false;
+                    parent.readonly_sealed_paths.clear();
+                }
                 parent.retained = parent.retained.max(child.retained);
             }
         }

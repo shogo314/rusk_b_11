@@ -15,7 +15,7 @@ extern fn plain() -> Leaf {
     cpp_name: "plain_hash_leaf",
     code: "Obj<std::int64_t> plain_hash_leaf(Loc){return make_obj<std::int64_t>(7);}",
 }
-extern fn copy(x: Leaf) -> Leaf {
+extern fn __copy__(x: Leaf) -> Leaf {
     cpp_name: "displaced_hash_leaf_copy",
     code: "Obj<std::int64_t> displaced_hash_leaf_copy(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x);}",
 }

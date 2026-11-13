@@ -58,8 +58,23 @@ pub(super) fn check_delimiter_depth(text: &str, file: &str) -> Result<(), String
     }
     let scanner = RuskGrammarScanner::new();
     let mut depth = 0usize;
+    let mut readonly_depth = 0usize;
     for found in scanner.find_matches(text, 0) {
-        match &text[found.span.clone()] {
+        let raw = &text[found.span.clone()];
+        if raw == "readonly" {
+            readonly_depth += 1;
+        } else if !raw.trim().is_empty() && !raw.starts_with("//") {
+            readonly_depth = 0;
+        }
+        if readonly_depth > MAX_DEPTH {
+            let before = &text[..found.span.start];
+            return Err(format!(
+                "{file}:{}:{}: readonly type nesting limit ({MAX_DEPTH}) exceeded",
+                before.bytes().filter(|&b| b == b'\n').count() + 1,
+                before.rsplit('\n').next().unwrap_or("").chars().count() + 1
+            ));
+        }
+        match raw {
             "(" | "[" | "{" => {
                 depth += 1;
                 if depth > MAX_DEPTH {

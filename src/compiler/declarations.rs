@@ -43,6 +43,7 @@ impl Compiler {
         }];
         self.register_types(&sources)?;
         self.register_enum_declarations(&sources)?;
+        self.register_aggregate_declarations(&sources);
         for statement in &sources[0].statements {
             match statement {
                 Stmt::Struct(name, parameters, _) if parameters.is_empty() => {
@@ -63,6 +64,7 @@ impl Compiler {
         generics::validate_type_declarations(sources)?;
         self.register_types(sources)?;
         self.register_enum_declarations(sources)?;
+        self.register_aggregate_declarations(sources);
         self.register_generic_functions(sources)?;
         self.validate_declared_types()?;
         self.register_concrete_declarations(sources)?;
@@ -183,6 +185,7 @@ impl Compiler {
         for (name, meta) in self.native_types.clone() {
             self.validate_representation(
                 &Name {
+                    constant: None,
                     text: name,
                     span: meta.span,
                 },

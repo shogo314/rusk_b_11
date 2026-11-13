@@ -34,9 +34,9 @@ extern fn __iter_next__<I, T>(it: Enumerated<I, T>) -> (Int, T) {
 }
 
 /// 現在の添字と走査元の進行状態をコピーします。
-extern fn copy<I, T>(it: Enumerated<I, T>) -> Enumerated<I, T> {
+extern fn __copy__<I, T>(it: Enumerated<I, T>) -> Enumerated<I, T> {
     effects: "read_fresh",
-    code: "Obj<@{Enumerated<I,T>}> @{fn}(Obj<@{Enumerated<I,T>}> it, Loc loc) { auto source = @{owned_call copy(I)->I via (0.source) into return.source}(it->source, loc); return make_obj<@{Enumerated<I,T>}>({source, it->index, it->ready, it->finished, it->overflow}); }",
+    code: "Obj<@{Enumerated<I,T>}> @{fn}(Obj<@{Enumerated<I,T>}> it, Loc loc) { auto source = @{owned_call __copy__(I)->I via (0.source) into return.source}(it->source, loc); return make_obj<@{Enumerated<I,T>}>({source, it->index, it->ready, it->finished, it->overflow}); }",
 }
 
 /// 左右2列の対応する要素を組にして返す遅延走査状態です。
@@ -67,9 +67,9 @@ extern fn __iter_next__<I, J, A, B>(it: Zipped<I, J, A, B>) -> (A, B) {
 }
 
 /// 左右の進行状態をコピーします。
-extern fn copy<I, J, A, B>(it: Zipped<I, J, A, B>) -> Zipped<I, J, A, B> {
+extern fn __copy__<I, J, A, B>(it: Zipped<I, J, A, B>) -> Zipped<I, J, A, B> {
     effects: "read_fresh",
-    code: "Obj<@{Zipped<I,J,A,B>}> @{fn}(Obj<@{Zipped<I,J,A,B>}> it, Loc loc) { auto left = @{owned_call copy(I)->I via (0.left) into return.left}(it->left, loc); auto right = @{owned_call copy(J)->J via (0.right) into return.right}(it->right, loc); return make_obj<@{Zipped<I,J,A,B>}>({left, right, it->ready, it->finished}); }",
+    code: "Obj<@{Zipped<I,J,A,B>}> @{fn}(Obj<@{Zipped<I,J,A,B>}> it, Loc loc) { auto left = @{owned_call __copy__(I)->I via (0.left) into return.left}(it->left, loc); auto right = @{owned_call __copy__(J)->J via (0.right) into return.right}(it->right, loc); return make_obj<@{Zipped<I,J,A,B>}>({left, right, it->ready, it->finished}); }",
 }
 
 extern fn __iter__(it: RangeIter) -> RangeIter {
@@ -118,7 +118,7 @@ extern fn __iter_next__<T>(it: ReverseVecIter<T>) -> T {
 }
 
 /// 現在の逆向き走査位置をコピーします。
-extern fn copy<T>(it: ReverseVecIter<T>) -> ReverseVecIter<T> {
+extern fn __copy__<T>(it: ReverseVecIter<T>) -> ReverseVecIter<T> {
     effects: "read_fresh",
     aliases: "return.owner=0.owner",
     code: "inline Obj<@{ReverseVecIter<T>}> @{fn}(Obj<@{ReverseVecIter<T>}> it, Loc) { return make_obj<@{ReverseVecIter<T>}>(*it); }",
@@ -160,7 +160,7 @@ extern fn __iter_next__(it: ReverseStrIter) -> Char {
 }
 
 /// 現在の逆向き走査位置をコピーします。
-extern fn copy(it: ReverseStrIter) -> ReverseStrIter {
+extern fn __copy__(it: ReverseStrIter) -> ReverseStrIter {
     effects: "read_fresh",
     aliases: "return.owner=0.owner",
     cpp_name: "rusk_copy_reverse_str",
@@ -200,7 +200,7 @@ extern fn __iter_next__(it: ReverseRangeIter) -> Int {
 }
 
 /// 現在の逆向き走査位置をコピーします。
-extern fn copy(it: ReverseRangeIter) -> ReverseRangeIter {
+extern fn __copy__(it: ReverseRangeIter) -> ReverseRangeIter {
     effects: "read_fresh",
     cpp_name: "rusk_copy_reverse_range",
     code: "inline Obj<RuskReverseRangeIter> rusk_copy_reverse_range(Obj<RuskReverseRangeIter> it, Loc) { return make_obj<RuskReverseRangeIter>(*it); }",

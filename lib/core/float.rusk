@@ -54,7 +54,7 @@ extern fn Str(x: Float) -> Str {
 }
 
 /// 同じFloatの値を持つ独立した値を作ります。
-extern fn copy(x: Float) -> Float {
+extern fn __copy__(x: Float) -> Float {
     lower: "*$0",
     effects: "read_fresh",
     cpp_name: "rusk_float_copy",

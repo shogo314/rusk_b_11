@@ -29,6 +29,7 @@ fn program(mut functions: Vec<hir::Function>) -> lir::Program {
         f.id = id;
     }
     let mut hir = hir::Program {
+        readonly_members: Default::default(),
         types: [
             ("Int".into(), hir::Type::Scalar(crate::ir::hir::Scalar::I64)),
             (

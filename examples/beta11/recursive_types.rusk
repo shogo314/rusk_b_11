@@ -1,0 +1,47 @@
+struct Node<T> {
+    value: T;
+    children: Vec<Node<T>>;
+}
+let first := Node::<Int> {
+    value: 1,
+    children: []
+};
+let second := Node::<Int> {
+    value: 2,
+    children: []
+};
+first.children.push_back(second);
+second.children.push_back(first);
+wt first.children[0].children[0].value;
+second.children.clear();
+let cloned = first;
+cloned.children[0].value = 9;
+wt second.value, cloned.children[0].value;
+first.children.clear();
+
+enum List<T> {
+    Cons(T, List<T>),
+    Nil,
+}
+let list := List::Cons(3, List::Cons(4, List::<Int>::Nil));
+let detached = list;
+wt match detached {
+    Cons(x, _) => x,
+    Nil => 0,
+};
+
+struct Left {
+    next: Option<Right>;
+}
+struct Right {
+    next: Option<Left>;
+}
+let left := Left {
+    next: None
+};
+let right := Right {
+    next: Some(left)
+};
+left.next := Some(right);
+right.next := None;
+left.next := None;

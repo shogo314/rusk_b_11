@@ -1,0 +1,34 @@
+//! 返却値と要素のreadonlyを型で表し、外側の格納先は変更できます。
+fn view<T>(value: T) -> readonly T {
+    return value;
+}
+let original := 1;
+let borrowed := view(original);
+let detached = borrowed;
+detached += 3;
+original = 9;
+let values: Vec<readonly Int> := [borrowed, view(2)];
+values.push_back(view(3));
+values[1] := view(5);
+wt borrowed, detached, values;
+let saved := values.pop_back();
+values.clear();
+wt saved, values.len();
+struct Row {
+    left: readonly Int;
+    right: Int;
+}
+fn update(row: Row) {
+    row.right += 1;
+}
+let row := Row {
+    left: borrowed,
+    right: 6
+};
+update(row);
+let counter := 0;
+let next := (x: Int) => {
+    counter += 1;
+    borrowed + x
+};
+wt row.left, row.right, next(1), counter;

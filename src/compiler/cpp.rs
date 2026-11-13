@@ -42,7 +42,7 @@ impl Compiler {
                 } else {
                     f.cpp.clone()
                 },
-                result: f.result.clone(),
+                result: access_types::underlying(&f.result).to_string(),
                 unit_object: self.native_unit_object(id),
                 trusted: f.body.is_none()
                     && (f.origin == Origin::StandardLibrary || self.native_lowering(id).is_some()),
@@ -63,6 +63,7 @@ impl Compiler {
             prelude += &self.symbols[name].code;
             prelude += "\n";
         }
+        prelude += &crate::metadata::cpp_constants();
         prelude += &self.enum_forwards();
         prelude += &self.record_forwards();
         if !self.native_type_prelude.is_empty() {

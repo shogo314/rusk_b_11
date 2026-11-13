@@ -12,7 +12,7 @@ extern fn number(x: Token) -> Int {
     cpp_name: "lazy_copy_number",
     code: "Obj<std::int64_t> lazy_copy_number(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x);}",
 }
-extern fn copy(x: Token) -> Token {
+extern fn __copy__(x: Token) -> Token {
     cpp_name: "lazy_copy_detach",
     code: "Obj<std::int64_t> lazy_copy_detach(Obj<std::int64_t> x,Loc){if(lazy_copy_reset)lazy_copy_reset();return make_obj<std::int64_t>(*x);}",
 }

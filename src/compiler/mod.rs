@@ -5,6 +5,7 @@ use crate::frontend::ast::{
 use crate::ir::hir::{Body, Call, Instruction, Literal, Place, Rvalue, Value, ValueId};
 use context::{FunctionContext, LoopContext, Variable};
 use std::collections::{BTreeMap, BTreeSet};
+mod access_types;
 mod aggregate_operations;
 mod bindings;
 mod callables;
@@ -87,6 +88,7 @@ pub struct Compiler {
     type_declaration_scopes: BTreeMap<String, scopes::ScopeId>,
     context: FunctionContext,
     expression_depth: usize,
+    readonly_native_uses: BTreeSet<(usize, usize, String, Span)>,
     types: BTreeMap<String, String>,
     enum_definitions: BTreeMap<String, enums::Definition>,
     enums: BTreeMap<String, enums::Enum>,
@@ -101,7 +103,10 @@ pub struct Compiler {
     capture_contexts: Vec<callables::CaptureContext>,
     records: BTreeMap<String, records::Record>,
     prepared_records: BTreeSet<String>,
+    record_preparation_depth: usize,
     record_copies: BTreeMap<String, String>,
+    aggregate_declarations: Vec<aggregate_operations::Declaration>,
+    aggregate_operations: BTreeSet<usize>,
     native_derivations: BTreeMap<String, generics::GenericFunction>,
     native_derivation_tasks: BTreeMap<usize, (String, String)>,
     native_derived_functions: BTreeSet<usize>,
@@ -246,13 +251,13 @@ impl Compiler {
         if let Some(tail) = tail {
             self.statement(&Stmt::Expr(self.scoped_expression(tail)))?;
         }
-        if f.result != "Unit" && !self.context.diverged {
+        if access_types::underlying(&f.result) != "Unit" && !self.context.diverged {
             return Err(f
                 .name
                 .span
                 .error("function may finish without returning a value"));
         }
-        if f.result == "Unit" {
+        if access_types::underlying(&f.result) == "Unit" {
             self.context.body.push(Instruction::Return {
                 value: None,
                 span: None,
@@ -262,10 +267,14 @@ impl Compiler {
         Ok(())
     }
     fn check_type(&mut self, n: &Name) -> Result<(), String> {
+        if n.text.len() > 16_384 {
+            return Err(n.span.error("type expansion limit exceeded"));
+        }
         if self.context.diverged {
             return Err(crate::ir::hir::DIVERGED.into());
         }
         if self.types.contains_key(&n.text)
+            || self.prepare_readonly_type(n)?
             || self.specialize_extern_type(n)?
             || self.specialize_enum(n)?
         {
@@ -359,7 +368,10 @@ impl Compiler {
         Ok(())
     }
     fn same(&self, a: &str, b: &str, s: &Span) -> Result<(), String> {
-        if a == b || a == crate::ir::hir::DIVERGED || b == crate::ir::hir::DIVERGED {
+        if access_types::same(a, b)
+            || a == crate::ir::hir::DIVERGED
+            || b == crate::ir::hir::DIVERGED
+        {
             Ok(())
         } else {
             Err(s.error(format!(
@@ -385,10 +397,16 @@ impl Compiler {
             .enumerate()
             .filter(|(index, f)| {
                 !self.generic_calls.contains_key(index)
+                    && self.aggregate_candidate(*index, &arguments)
                     && scopes.contains(&f.scope)
                     && f.name.text == lookup_name
-                    && f.params == arguments
-                    && (!return_selected(name) || expected.is_none_or(|t| f.result == t))
+                    && f.params.len() == arguments.len()
+                    && f.params
+                        .iter()
+                        .zip(&arguments)
+                        .all(|(p, a)| access_types::same(p, a))
+                    && (!return_selected(name)
+                        || expected.is_none_or(|t| access_types::same(&f.result, t)))
             })
             .map(|(i, _)| i)
             .collect();
@@ -447,23 +465,35 @@ impl Compiler {
         if self.context.diverged {
             return Ok(Value::never());
         }
+        let args = args
+            .into_iter()
+            .map(|v| self.readonly_view(v, s))
+            .collect::<Vec<_>>();
         if let Some(value) = self.enum_constructor(name, &args, expected, s)? {
             return Ok(value);
         }
-        let i = self
-            .resolve_callable(name, &args, expected, s)?
-            .ok_or_else(|| {
-                s.error(format!(
-                    "no matching function '{}' for ({})",
-                    self.source_function_name(name),
-                    args.iter()
-                        .map(|v| self.diagnostic_type(&v.ty))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ))
-            })?;
+        let resolved = self.resolve_callable(name, &args, expected, s)?;
+        if resolved.is_none()
+            && args.is_empty()
+            && let Some(value) = self.empty_record_constructor(name, s)?
+        {
+            return Ok(value);
+        }
+        let i = resolved.ok_or_else(|| {
+            s.error(format!(
+                "no matching function '{}' for ({})",
+                self.source_function_name(name),
+                args.iter()
+                    .map(|v| self.diagnostic_type(&v.ty))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
+        })?;
         self.used.insert(i);
         let f = self.functions[i].clone();
+        for (parameter, value) in f.params.iter().zip(&args) {
+            self.same(parameter, &value.ty, s)?;
+        }
         let result = Value {
             id: self.temp(),
             ty: f.result.clone(),
@@ -636,7 +666,12 @@ impl Compiler {
                     Some(declared)
                 };
                 let value = if let Some(value) = value {
-                    Some(self.expr(value, hint.as_deref())?)
+                    let value = self.expr(value, hint.as_deref())?;
+                    Some(if let Some(ty) = &hint {
+                        self.qualify_value(value, ty, span)
+                    } else {
+                        value
+                    })
                 } else {
                     None
                 };
@@ -649,7 +684,11 @@ impl Compiler {
                         self.context.inferred_return = Some(ty.into());
                     }
                     self.context.body.push(Instruction::Return {
-                        value: if ty == "Unit" { None } else { value },
+                        value: if access_types::underlying(ty) == "Unit" {
+                            None
+                        } else {
+                            value
+                        },
                         span: Some(span.clone()),
                     });
                     self.context.diverged = true;
@@ -668,7 +707,7 @@ impl Compiler {
                         };
                         let value = self.expr(e, t.as_ref().map(|n| n.text.as_str()))?;
                         if copied {
-                            self.call("copy", vec![value], None, &e.span)
+                            self.copy_value(value, &e.span)
                         } else {
                             Ok(value)
                         }
@@ -689,6 +728,7 @@ impl Compiler {
                     .ok_or_else(|| n.span().error("uninitialized declaration requires a type"))?;
                 if let Some(value) = value {
                     self.same(&ty, &value.ty, n.span())?;
+                    let value = self.qualify_value(value, &ty, n.span());
                     self.declare_binding(n, value)?;
                 } else if let Binding::Name(name) = n {
                     self.declare_annotated(name, ty, None)?;
@@ -994,13 +1034,13 @@ impl Compiler {
             )));
         }
         self.expression_depth += 1;
-        let result = self.expr_inner(e, expected);
+        let result = self.expr_inner(e, expected.map(access_types::underlying));
         self.expression_depth -= 1;
         match result {
             Err(error) if error == crate::ir::hir::DIVERGED => Ok(Value::never()),
             Err(error) => Err(error),
             Ok(_) if self.context.diverged => Ok(Value::never()),
-            Ok(value) => Ok(value),
+            Ok(value) => Ok(self.readonly_view(value, &e.span)),
         }
     }
     fn expr_inner(&mut self, e: &Expr, expected: Option<&str>) -> Result<Value, String> {
@@ -1039,16 +1079,24 @@ impl Compiler {
                     },
                 ))
             }
-            ExprKind::Literal(ty, text) => self.literal(literal_type(ty, expected), text, &e.span),
+            ExprKind::Literal(ty, text) => self.literal(
+                literal_type(ty, expected.map(access_types::underlying)),
+                text,
+                &e.span,
+            ),
             ExprKind::Array(items) => {
                 let hint = expected.and_then(vector_element);
                 let mut values = vec![];
                 for item in items {
                     values.push(self.expr(item, hint)?);
                 }
-                let element = values
-                    .first()
-                    .map(|v| v.ty.as_str())
+                let actual = values.first().map(|v| v.ty.as_str());
+                let qualified = hint.filter(|hint| {
+                    access_types::inner(hint).is_some()
+                        && actual.is_none_or(|actual| access_types::same(hint, actual))
+                });
+                let element = qualified
+                    .or(actual)
                     .or(hint)
                     .ok_or_else(|| e.span.error("empty array requires a vector type context"))?
                     .to_string();
@@ -1057,6 +1105,7 @@ impl Compiler {
                 }
                 let ty = format!("Vec<{element}>");
                 self.check_type(&Name {
+                    constant: None,
                     text: ty.clone(),
                     span: e.span.clone(),
                 })?;
@@ -1068,8 +1117,15 @@ impl Compiler {
             }
             ExprKind::Repeat(initial, count) => {
                 let initial = self.expr(initial, expected.and_then(vector_element))?;
-                let ty = format!("Vec<{}>", initial.ty);
+                let element = expected
+                    .and_then(vector_element)
+                    .filter(|hint| {
+                        access_types::inner(hint).is_some() && access_types::same(hint, &initial.ty)
+                    })
+                    .unwrap_or(&initial.ty);
+                let ty = format!("Vec<{element}>");
                 self.check_type(&Name {
+                    constant: None,
                     text: ty.clone(),
                     span: e.span.clone(),
                 })?;
@@ -1225,7 +1281,7 @@ impl Compiler {
                     }
                     let mut value = self.expr(right, None)?;
                     if op == "=" {
-                        value = self.call("copy", vec![value], None, &right.span)?;
+                        value = self.copy_value(value, &right.span)?;
                     }
                     return self.assign_tuple_value(op, left, value);
                 }

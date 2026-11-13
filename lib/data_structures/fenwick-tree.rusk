@@ -1,0 +1,60 @@
+// A commutative additive group: independent + and - results, with an explicit zero.
+/// 点加算と区間和を扱うFenwick木です。
+struct FenwickTree<T> {
+    /// 木の内部配列。直接変更しないでください。
+    tree: Vec<T>;
+    /// 独立に保持する加算の単位元です。
+    zero: T;
+}
+
+/// 可換な加算・減算とゼロ元によるFenwick木を構築します。
+fn FenwickTree<T>(n: Int, zero: T) -> FenwickTree<T> {
+    assert(n >= 0);
+    return FenwickTree::<T> {
+        tree: [zero; n + 1],
+        zero: copy(zero)
+    };
+}
+
+/// 指定位置へdeltaを加算します。位置は0始まりです。
+fn apply<T>(fw: FenwickTree<T>, position: Int, delta: T) {
+    assert(0 <= position && position + 1 < fw.tree.len());
+    let index := position + 1;
+    while index < fw.tree.len() {
+        fw.tree[index] += delta;
+        index += index & -index;
+    }
+}
+
+/// 先頭からend未満の要素を加算して返します。
+fn prefix_prod<T>(fw: FenwickTree<T>, end: Int) -> T {
+    assert(0 <= end && end < fw.tree.len());
+    let total = fw.zero;
+    let index = end;
+    while index > 0 {
+        total += fw.tree[index];
+        index -= index & -index;
+    }
+    return total;
+}
+
+/// 半開区間[left,right)の集計を独立した値として返します。
+fn prod<T>(fw: FenwickTree<T>, left: Int, right: Int) -> T {
+    assert(0 <= left && left <= right && right < fw.tree.len());
+    return fw.prefix_prod(right) - fw.prefix_prod(left);
+}
+
+/// 可換な加算・減算とゼロ元によるFenwick木を構築します。
+fn FenwickTree<T>(values: Vec<T>, zero: T) -> FenwickTree<T> {
+    let fw := FenwickTree(values.len(), zero);
+    for i in 0 .. values.len() {
+        fw.tree[i + 1] = values[i];
+    }
+    for index in 1 .. fw.tree.len() {
+        let parent := index + (index & -index);
+        if parent < fw.tree.len() {
+            fw.tree[parent] += fw.tree[index];
+        }
+    }
+    return fw;
+}

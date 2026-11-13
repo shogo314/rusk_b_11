@@ -6,6 +6,11 @@ impl Compiler {
         ty: String,
         value: Option<Value>,
     ) -> Result<(), String> {
+        let mut name = name.clone();
+        if access_types::inner(&ty).is_some() {
+            name.access = Some(access_types::info(&name.span, &name.text).annotation);
+        }
+        let name = &name;
         if let Some(annotation) = &name.escape {
             let Some(Value {
                 id: ValueId::Parameter(parameter),

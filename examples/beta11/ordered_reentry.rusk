@@ -1,0 +1,38 @@
+extern symbol state {
+    code: "std::function<void()> ordered_change;",
+}
+extern fn change() {
+    cpp_name: "ordered_test_change",
+    code: "void ordered_test_change(Loc){ordered_change();}",
+}
+extern fn watch<T>(table: T) {
+    code: "void @{fn}(Obj<@{T}> table,Loc){ordered_change=[table](){table->entries.clear();++table->version;};}",
+}
+fn compare_int(a: Int, b: Int) -> Ordering {
+    return a <=> b;
+} {
+    struct Key {
+        value: Int;
+    }
+    let armed := false;
+    fn __cmp__(a: Key, b: Key) -> Ordering {
+        if armed {
+            change();
+        }
+        return compare_int(a.value, b.value);
+    }
+    let table := OrderedSet::<Key>();
+    watch(table);
+    table.insert(
+        Key {
+            value: 1
+        }
+    );
+    armed = true;
+    wt "before";
+    wt table.contains(
+        Key {
+            value: 2
+        }
+    );
+}

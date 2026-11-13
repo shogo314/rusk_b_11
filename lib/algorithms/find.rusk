@@ -10,7 +10,7 @@ fn find<T>(a: Vec<T>, value: T) -> Option<Int> {
         // Validate even a successful comparison before returning its index.
         __iter_has_next__(it);
         if matched {
-            return Some(copy(index));
+            return Some(__copy__(index));
         }
         index += 1;
     }

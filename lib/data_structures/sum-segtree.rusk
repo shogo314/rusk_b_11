@@ -1,11 +1,17 @@
 // Associative + with an explicit identity; prod preserves left-to-right order.
+/// 加算演算を使う区間集計木です。
 struct SumSegTree<T> {
+    /// 元の配列の要素数です。
     length: Int;
+    /// 内部の葉の数です。
     size: Int;
+    /// 木の内部配列。直接変更しないでください。
     tree: Vec<T>;
+    /// 独立に保持する加算の単位元です。
     zero: T;
 }
 
+/// 結合的な加算と明示的なゼロ元を使う区間集計木を構築します。
 fn SumSegTree<T>(values: Vec<T>, zero: T) -> SumSegTree<T> {
     let size := 1;
     while size < values.len() {
@@ -28,6 +34,7 @@ fn SumSegTree<T>(values: Vec<T>, zero: T) -> SumSegTree<T> {
     };
 }
 
+/// 指定位置の値をコピーして置き換えます。
 fn set<T>(seg: SumSegTree<T>, position: Int, value: T) {
     assert(0 <= position && position < seg.length);
     let index := seg.size + position;
@@ -38,6 +45,7 @@ fn set<T>(seg: SumSegTree<T>, position: Int, value: T) {
     }
 }
 
+/// 半開区間[left,right)の集計を独立した値として返します。
 fn prod<T>(seg: SumSegTree<T>, left: Int, right: Int) -> T {
     assert(0 <= left && left <= right && right <= seg.length);
     let l := left + seg.size;

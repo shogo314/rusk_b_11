@@ -9,6 +9,18 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ((ROOT/'examples/beta11/ordered_reentry.rusk').read_text(),b'',b'before\n',b'container reentered during ordered operation'),
+    ((ROOT/'examples/beta11/standard_library.rusk').read_text(),b'',b'1 1 2\n1 2 1\n2 1 1\n2 1 1\n1234567890123456789012345678900 -3 2\n1 2 4 7\n01010 3\n1 2 3 3\n1 8 3 8 3\n1 3 3 2\n1 2 a b\n6 72 1 3 6\n'),
+    ((ROOT/'examples/beta11/hash_reentry.rusk').read_text(),b'3',b'before\n',b'container changed during key export'),
+    ((ROOT/'examples/beta11/hash_reentry.rusk').read_text(),b'4',b'before\n',b'container changed during iteration'),
+    ((ROOT/'examples/beta11/hash_reentry.rusk').read_text(),b'5',b'before\n',b'container changed during copy'),
+    ((ROOT/'examples/beta11/hash_reentry.rusk').read_text(),b'0',b'before\n',b'container reentered during hash operation'),
+    ((ROOT/'examples/beta11/hash_reentry.rusk').read_text(),b'1',b'before\n',b'container reentered during hash operation'),
+    ((ROOT/'examples/beta11/hash_reentry.rusk').read_text(),b'2',b'before\nNo\n'),
+    ((ROOT/'examples/beta11/readonly_types.rusk').read_text(),b'',b'9 4 9 5 3\n3 0\n9 7 10 1\n'),
+    ((ROOT/'examples/beta11/shared_copy_assignment.rusk').read_text(),b'',b'7 2 3 7 2 2\n2 1 8 1\n2 1 Yes\n'),
+    ((ROOT/'examples/beta11/graph_copy.rusk').read_text(),b'',b'Yes\n1 10 No\n'),
+    ((ROOT/'examples/beta11/recursive_types.rusk').read_text(),b'',b'1\n2 9\n3\n'),
     ((ROOT/'examples/beta10/copied_recursion.rusk').read_text(),b'',b'3 1\n2\n4 4\n'),
     ((ROOT/'examples/beta10/function_families.rusk').read_text(),b'',b'3 abc\n2 4\n1 2 1 2\n12 12 13\n14\nZ a\nZb!\n'),
     ((ROOT/'examples/beta10/native_captures.rusk').read_text(),b'',b'1 102 2\n3 3\nZ a\nZb!\n1112\n102\n'),
@@ -129,9 +141,7 @@ let values:=[1,2,3,4];let n:=0;
 let it:=values.filter((x:Int)=>x%2==0).map((x:Int)=>x+(n+=1));
 let copy_it=it;wt it.to_vec(),n;wt copy_it.to_vec(),n;
 ''',b'',b'Z b new\n3 6 2\n3 6 2\n'),
-    (f'include {json.dumps(str(ROOT/"examples/beta04/library/priority_queue.rusk"))};\n'
-     f'include {json.dumps(str(ROOT/"examples/beta04/library/segment_tree.rusk"))};\n'
-     + '''let queue:=PriorityQueue([3,1,2],(a:Int,b:Int)=>a<b);
+    ('''let queue:=PriorityQueue([3,1,2],(a:Int,b:Int)=>a<b);
 let detached=queue;wt queue.pop(),queue.pop(),detached.pop();
 let seg:=SegTree(["a","b","c"],"",(a:Str,b:Str)=>a+b);
 let changed=seg;changed.set(1,"X");wt seg.prod(0,3),changed.prod(0,3);
@@ -166,10 +176,8 @@ let old:=original.payload[1][0];
 let detached = original; original=Envelope::<(Str,Vec<Int>)> { payload:("new",[9]) };
 detached.payload[1][0]=7; wt old,detached.payload,original.payload;
 ''', b'', b'abc!\n1 old 7 2 new 9\n'),
-    (f'include {json.dumps(str(ROOT/"examples/beta02/library/fenwick.rusk"))};\n'
-     f'include {json.dumps(str(ROOT/"examples/beta02/library/sum_segment_tree.rusk"))};\n'
-     + '''let fw:=Fenwick([1,2,3],0); let detached = fw;
-fw.add(1,4); wt fw.prefix_sum(3),detached.prefix_sum(3);
+    ('''let fw:=FenwickTree([1,2,3],0); let detached = fw;
+fw.apply(1,4); wt fw.prefix_prod(3),detached.prefix_prod(3);
 let seg:=SumSegTree(["a","b","c"],""); seg.set(1,"X"); wt seg.prod(0,3);
 ''', b'', b'10 6\naXc\n'),
     ('''fn fresh(x:Int)->Int { return x*2+1; }
@@ -323,13 +331,18 @@ run(true);run(false);
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--no-leaks', action='store_true', help='disable LeakSanitizer for ptrace environments')
+    parser.add_argument('--case', dest='cases', type=int, action='append', metavar='NUMBER',
+                        help='run a numbered case (1-based); repeat to select several; default: all cases')
     args=parser.parse_args()
+    if args.cases and any(index < 1 or index > len(CASES) for index in args.cases):
+        parser.error(f'case number must be between 1 and {len(CASES)}')
+    cases = CASES if not args.cases else [CASES[index-1] for index in sorted(set(args.cases))]
     env=os.environ.copy()
     if args.no_leaks:
         env['ASAN_OPTIONS']=env.get('ASAN_OPTIONS','')+':detect_leaks=0'
     with tempfile.TemporaryDirectory(prefix='rusk-sanitizers-') as directory:
         temp=Path(directory)
-        for case in CASES:
+        for case in cases:
             source, data, expected = case[:3]
             expected_error = case[3] if len(case) == 4 else None
             (temp/'main.rusk').write_text(source)
@@ -346,7 +359,7 @@ def main():
                 assert run.stderr.rstrip().endswith(expected_error), run.stderr
             else:
                 assert not run.stderr, run.stderr
-    print(f'AddressSanitizer / UBSan: {len(CASES)} cases passed')
+    print(f'AddressSanitizer / UBSan: {len(cases)} cases passed')
 
 if __name__ == '__main__':
     main()

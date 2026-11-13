@@ -1,6 +1,5 @@
 // verification-helper: PROBLEM https://judge.yosupo.jp/problem/point_set_range_composite
 // Source: https://github.com/yosupo06/library-checker-problems/tree/master/data_structure/point_set_range_composite
-include "../beta04/library/segment_tree.rusk";
 struct Affine {
     a: Int;
     b: Int;

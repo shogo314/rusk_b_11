@@ -185,9 +185,17 @@ pub(crate) fn compose(
                 ..effect.clone()
             };
             parent.read = parent.read.max(passed.read);
+            if passed.write != Effect::No || passed.structural != Effect::No {
+                parent.root_only = false;
+                parent.write_paths = None;
+            }
             parent.write = parent.write.max(passed.write);
             parent.structural = parent.structural.max(passed.structural);
             parent.escape = parent.escape.max(passed.escape);
+            if passed.retained != Effect::No {
+                parent.readonly_sealed = false;
+                parent.readonly_sealed_paths.clear();
+            }
             parent.retained = parent.retained.max(passed.retained);
         }
         if let Destination::Return(target) = &dependency.result {
@@ -225,11 +233,15 @@ pub(crate) fn compose(
             // whole-argument may sets until a native heap model is available.
             let target = &mut result.parameters[*parameter];
             target.read = target.read.max(Effect::May);
+            target.root_only = false;
+            target.write_paths = None;
             target.write = target.write.max(Effect::May);
             target.structural = target.structural.max(Effect::May);
             if child.returned.unknown {
                 for parameter in &mut result.parameters {
                     parameter.escape = parameter.escape.max(Effect::May);
+                    parameter.readonly_sealed = false;
+                    parameter.readonly_sealed_paths.clear();
                     parameter.retained = parameter.retained.max(Effect::May);
                 }
             } else {
@@ -274,8 +286,14 @@ pub(crate) fn compose(
             .max()
             .unwrap_or(Effect::No);
         for parameter in &mut result.parameters {
+            parameter.root_only = false;
+            parameter.write_paths = None;
             parameter.write = parameter.write.max(Effect::May);
             parameter.structural = parameter.structural.max(structural);
+            if retained != Effect::No {
+                parameter.readonly_sealed = false;
+                parameter.readonly_sealed_paths.clear();
+            }
             parameter.retained = parameter.retained.max(retained);
             parameter.escape = parameter.escape.max(Effect::May);
         }

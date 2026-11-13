@@ -184,7 +184,7 @@ impl Compiler {
             }
             Declaration::Value(id) => {
                 let f = &self.functions[*id];
-                let result = if f.result == "Unit" {
+                let result = if access_types::underlying(&f.result) == "Unit" {
                     "void"
                 } else {
                     &self.types[&f.result]

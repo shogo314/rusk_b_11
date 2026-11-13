@@ -1,6 +1,23 @@
 mod support;
 use support::Case;
 
+fn effect_body(body: &str) -> &str {
+    let mut depth = 1usize;
+    for (offset, c) in body.char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return &body[..offset];
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("unterminated parameter effect summary");
+}
+
 #[test]
 fn extern_contracts_work_for_generic_calls_function_values_and_callbacks() {
     let case = Case::new(include_str!("../examples/beta09/extern_contracts.rusk"));
@@ -320,7 +337,7 @@ fn diagnostics_point_to_returns_and_retaining_calls_before_ir_or_cpp_output() {
             let function = &dump[dump.find("name: \"f\",").unwrap()..];
             let effects = &function[function.find("effects: Summary").unwrap()..];
             for parameter in effects.split("ParameterEffects {").skip(1).take(2) {
-                assert!(parameter.split('}').next().unwrap().contains("escape: No"));
+                assert!(effect_body(parameter).contains("escape: No"));
             }
         }
     }
@@ -415,13 +432,7 @@ fn private_stores_are_inferred_without_annotations_and_preserved_in_ir() {
         for name in ["plain", "explicit", "nested", "via_call", "via_result"] {
             let function = &dump[dump.find(&format!("name: \"{name}\",")).unwrap()..];
             let effects = &function[function.find("effects: Summary").unwrap()..];
-            let parameter = effects
-                .split("ParameterEffects {")
-                .nth(1)
-                .unwrap()
-                .split('}')
-                .next()
-                .unwrap();
+            let parameter = effect_body(effects.split("ParameterEffects {").nth(1).unwrap());
             assert!(
                 parameter.contains("escape: No") && parameter.contains("retained: No"),
                 "{parameter}"

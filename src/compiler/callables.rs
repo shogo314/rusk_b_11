@@ -243,6 +243,7 @@ impl Compiler {
                 ty.clone(),
                 records::Record {
                     name: Name {
+                        constant: None,
                         text: ty.clone(),
                         span: span.clone(),
                     },
@@ -317,6 +318,7 @@ impl Compiler {
                     (
                         name.clone(),
                         Name {
+                            constant: None,
                             text: var.ty.clone(),
                             span: name.span.clone(),
                         },
@@ -338,6 +340,7 @@ impl Compiler {
                 // invocation entry remains callable after its scope has ended.
                 scope: scopes::ScopeId::ROOT,
                 name: Name {
+                    constant: None,
                     text: format!("$invoke{index}"),
                     span: span.clone(),
                 },
@@ -352,7 +355,7 @@ impl Compiler {
                 checked: Some({
                     if !exits {
                         checked_body.push(Instruction::Return {
-                            value: if result == "Unit" {
+                            value: if access_types::underlying(&result) == "Unit" {
                                 None
                             } else {
                                 Some(value.clone())

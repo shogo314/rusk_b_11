@@ -8,8 +8,15 @@ use std::{
 
 const MAX_INCLUDE_DEPTH: usize = 128;
 
+#[derive(Clone)]
+pub(crate) struct SourceFile {
+    pub name: String,
+    pub text: String,
+}
+
 pub struct Loaded {
     pub statements: Vec<Stmt>,
+    pub(crate) sources: Vec<SourceFile>,
     pub dependencies: Vec<PathBuf>,
 }
 
@@ -64,6 +71,7 @@ struct Loader<'a> {
     active: Vec<PathBuf>,
     dependencies: BTreeSet<PathBuf>,
     documentation: Option<BTreeMap<String, SourceDocumentation>>,
+    sources: Vec<SourceFile>,
 }
 impl<'a> Loader<'a> {
     fn new(files: Files<'a>) -> Self {
@@ -73,6 +81,7 @@ impl<'a> Loader<'a> {
             active: vec![],
             dependencies: BTreeSet::new(),
             documentation: None,
+            sources: vec![],
         }
     }
     fn expand(
@@ -121,6 +130,10 @@ impl<'a> Loader<'a> {
         } else {
             self.files.display(&canonical)
         };
+        self.sources.push(SourceFile {
+            name: display.clone(),
+            text: text.to_string(),
+        });
         let statements = if let Some(files) = &mut self.documentation {
             let (statements, docs) = crate::frontend::parse_documented(&text, &display)?;
             files.insert(display, docs);
@@ -197,6 +210,7 @@ impl<'a> Loader<'a> {
         self.expand(path, None, &mut statements)?;
         Ok(Loaded {
             statements,
+            sources: self.sources,
             dependencies: self.dependencies.into_iter().collect(),
         })
     }

@@ -37,21 +37,47 @@ impl Compiler {
         rows: &[Vec<TypedPattern>],
         candidate: &[TypedPattern],
     ) -> Result<Option<Vec<String>>, String> {
-        self.useful_pattern(rows, candidate, &mut 100_000)
+        self.useful_pattern(rows, candidate, &mut 100_000, 0)
     }
+    fn uncovered_pattern(&self, pattern: &TypedPattern) -> String {
+        match &pattern.kind {
+            Kind::Wild(_) => "_".into(),
+            Kind::Or(alternatives) => self.uncovered_pattern(&alternatives[0]),
+            Kind::Constructor(constructor, fields) => self.format_constructor(
+                &pattern.ty,
+                constructor,
+                &fields
+                    .iter()
+                    .map(|field| self.uncovered_pattern(field))
+                    .collect::<Vec<_>>(),
+            ),
+        }
+    }
+
     fn useful_pattern(
         &self,
         rows: &[Vec<TypedPattern>],
         candidate: &[TypedPattern],
         budget: &mut usize,
+        depth: usize,
     ) -> Result<Option<Vec<String>>, String> {
         if candidate.is_empty() {
             return Ok(rows.is_empty().then(Vec::new));
         }
-        if *budget == 0 {
+        if *budget == 0 || depth >= 256 {
             return Err(candidate[0].span.error("pattern analysis limit exceeded"));
         }
         *budget -= 1;
+        // No covered row can exclude this candidate. Render its finite source
+        // pattern instead of unfolding a wildcard's recursive type forever.
+        if rows.is_empty() {
+            return Ok(Some(
+                candidate
+                    .iter()
+                    .map(|pattern| self.uncovered_pattern(pattern))
+                    .collect(),
+            ));
+        }
         if rows
             .iter()
             .any(|r| r.iter().all(|p| matches!(p.kind, Kind::Wild(_))))
@@ -63,7 +89,7 @@ impl Compiler {
             for a in alternatives {
                 let mut next = vec![a.clone()];
                 next.extend_from_slice(&candidate[1..]);
-                if let Some(witness) = self.useful_pattern(rows, &next, budget)? {
+                if let Some(witness) = self.useful_pattern(rows, &next, budget, depth + 1)? {
                     return Ok(Some(witness));
                 }
             }
@@ -89,7 +115,9 @@ impl Compiler {
                         .collect()
                 };
                 next.extend_from_slice(&candidate[1..]);
-                if let Some(witness) = self.useful_pattern(&specialized, &next, budget)? {
+                if let Some(witness) =
+                    self.useful_pattern(&specialized, &next, budget, depth + 1)?
+                {
                     let (children, tail) = witness.split_at(fields.len());
                     let mut result =
                         vec![self.format_constructor(&first.ty, &constructor, children)];
@@ -103,7 +131,8 @@ impl Compiler {
             for row in rows {
                 specialize_row(row, None, &[], &mut defaults);
             }
-            let Some(tail) = self.useful_pattern(&defaults, &candidate[1..], budget)? else {
+            let Some(tail) = self.useful_pattern(&defaults, &candidate[1..], budget, depth + 1)?
+            else {
                 return Ok(None);
             };
             let mut seen = BTreeSet::new();

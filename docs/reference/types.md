@@ -1,6 +1,6 @@
 # 型の一覧
 
-このページは、現在のRuskで使える型をまとめたものです。標準ライブラリは自動で読み込まれます。追加のデータ構造には`include`が必要です。
+このページは、現在のRuskで使える型をまとめたものです。標準ライブラリは自動で読み込まれます。データ構造も自動読み込みされます。
 
 表中の`T`・`K`・`V`などは型引数を表す記号です。標準で使える名前と、[利用者が定義する型](#user-types)を分けて記載します。
 
@@ -10,6 +10,7 @@
 |---|---|---|
 | `Int` | `42`、`-7`、`Int()`は0 | 符号付き64ビット。−2⁶³〜2⁶³−1。オーバーフロー・ゼロ除算を検査 |
 | `Int128` | `42i128`、`let x: Int128 := 42;` | 符号付き128ビット。−2¹²⁷〜2¹²⁷−1。オーバーフロー・ゼロ除算を検査 |
+| `BigInt` | `BigInt("12345678901234567890")` | 任意精度整数。[数値・配列ライブラリ](../library/extended.md) |
 | `Float` | `1.25`、`2e-6`、`Float()`は正のゼロ | IEEE 754 binary64。有限値、符号付きゼロ、無限大、NaN |
 | `Bool` | `true`、`false`、`Bool()`はfalse | 真偽値。標準出力は`Yes`・`No` |
 | `Char` | `'a'`、`'\n'`、`Char()`はNUL | ASCIIの1文字。コードは0〜127 |
@@ -172,8 +173,8 @@ wt total(1..4), doubled.to_vec();
 
 | 種類 | 宣言・利用方法 | 自動で用意する操作 |
 |---|---|---|
-| 構造体 | `struct`で名前・フィールドを定義 | フィールドに対応するコピー・代入。比較・出力は自動生成しない |
-| enum | `enum`でvariantとpayloadを定義 | payloadに対応するコピー・代入。一般の比較・出力・真偽変換は自動生成しない |
+| 構造体 | `struct`で名前・フィールドを定義 | フィールドに対応するコピー・代入・等値比較・ハッシュ。順序比較・出力は自動生成しない |
+| enum | `enum`でvariantとpayloadを定義 | variant・payloadに対応するコピー・代入・等値比較・ハッシュ。順序比較・出力・真偽変換は自動生成しない |
 | 型引数付き構造体・enum | 定義に`<T>`などを付け、具体的な型で利用 | 具体化したフィールド・payloadに従う |
 | 関数値・クロージャ | 関数名・オーバーロード集合・ジェネリック関数、または`(x: Int) => ...` | 固有の型と静的な呼び出し。捕捉のコピー・代入は捕捉値の操作による |
 | 外部型 | `extern type`でC++表現を宣言 | コピー・比較・入出力などは必要に応じて関数を定義 |
@@ -196,25 +197,27 @@ wt add_y(4);
 
 [構造体・タプル・型引数](records.md)、[enum](enums.md)、[関数値と捕捉](closures.md)、[extern](../development/extern.md)に詳しい規則があります。
 
-## includeして使うデータ構造
+## 標準のデータ構造
 
-次はリポジトリに付属するRuskのライブラリです。自動では読み込まれません。
+次はRuskで記述した標準のデータ構造です。自動読み込みされ、includeは不要です。
 
-| 実在する型 | includeするファイル | 用途 |
+| 実在する型 | 定義ファイル | 用途 |
 |---|---|---|
-| `UnionFind` | `examples/beta02/library/union_find.rusk` | 素集合の併合・同一集合の判定 |
-| `Fenwick<T>` | `examples/beta02/library/fenwick.rusk` | 点更新・区間和 |
-| `SumSegTree<T>` | `examples/beta02/library/sum_segment_tree.rusk` | 加算を使う区間集計 |
-| `PriorityQueue<T,F>` | `examples/beta04/library/priority_queue.rusk` | 比較関数Fで優先順位を決めるヒープ |
-| `SegTree<T,F>` | `examples/beta04/library/segment_tree.rusk` | 演算関数Fと単位元を指定する区間集計 |
+| `UnionFind` | `lib/data_structures/unionfind.rusk` | 素集合の併合・同一集合の判定 |
+| `FenwickTree<T>` | `lib/data_structures/fenwick-tree.rusk` | 点更新・区間和 |
+| `SumSegTree<T>` | `lib/data_structures/sum-segtree.rusk` | 加算を使う区間集計 |
+| `PriorityQueue<T,F>` | `lib/data_structures/priority-queue.rusk` | 比較関数Fで優先順位を決めるヒープ |
+| `SegTree<T,F>` | `lib/data_structures/segtree.rusk` | 演算関数Fと単位元を指定する区間集計 |
 
-パスはリポジトリ直下に利用プログラムを置く場合の指定です。構築・操作・コピーの条件は[基本データ構造](../library/data-structures.md)と[関数付きデータ構造](../library/algorithms.md)を参照してください。
+表のパスは標準ライブラリの実装場所です。構築・操作・コピーの条件は[基本データ構造](../library/data-structures.md)と[関数付きデータ構造](../library/algorithms.md)を参照してください。
+
+型・具体化には、`Capacity<3>`のような[コンパイル時の値引数](functions.md#value-arguments)も使えます。値パラメータは`N: Int`・`B: Bool`と宣言します。
 
 ## 型引数・注釈と制限
 
 型引数の表記は、型の位置では`Vec<Int>`、ジェネリック関数の呼び出しでは`try_read::<Int>()`、構造体構築では上の定義例の`Holder::<Int> { value: 1 }`です。空配列・None・空コンテナなどで型が決まらない場合は、型注釈や明示型引数を付けます。
 
-明示型引数を指定できるのは、型引数を宣言した関数です。Intをコピーする標準の`copy`は具体的な関数なので、`copy(number)`と呼びます。
+明示型引数を指定できるのは、型引数を宣言した関数です。利用者向けの`copy<T>`も型引数付き関数です。通常は`copy(number)`のように引数から推論します。
 
 ```rusk
 let number: Int := 7;
@@ -225,4 +228,8 @@ wt from_input ?? 0;
 
 入力が`9`なら、出力は`7`、`9`です。
 
-`readonly`・`mutable`・`fixed`・`rebindable`は変数・引数への注釈です。`Vec<readonly Int>`のような型表記や、型引数のトレイト制約は現在提供していません。再帰型、空の構造体、スライス、型消去した共通関数型も未対応です。未実装の方針は[将来の方針](../future.md)を参照してください。
+`readonly`・`mutable`・`fixed`・`rebindable`は変数・引数への注釈です。型の位置では`readonly T`や`Vec<readonly Int>`と書き、返却値と格納要素の権限を表せます。[readonlyの型表現](access.md#readonly-types)を参照してください。型引数のトレイト制約は現在提供していません。Sliceは標準ライブラリの関数で構築します。型消去した共通関数型は未対応です。未実装の方針は[将来の方針](../future.md)を参照してください。
+
+## 追加の標準コンテナ
+
+`IntArray`・`BitVec`・`Bits<N>`・`Deque<T>`・`Array<T,N>`・`Slice<S,T>`・`OrderedSet<K>`・`MultiSet<K>`・`OrderedDict<K,V>`・`Permutations<T>`も標準で読み込まれます。構築・共有・コピーと必要な操作は[数値・配列・整列コンテナと順列](../library/extended.md)を参照してください。

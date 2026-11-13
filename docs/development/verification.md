@@ -58,6 +58,7 @@ RUSK_TEST_NO_OPT=1 cargo test --locked --test documentation
 | 制御・パターン・最小最大 | `blocks_labels`、`beta05`、`beta06`、`minmax` |
 | 関数値・走査・データ構造 | `callables`、`higher_order`、`data_structures`、`beta04_structures` |
 | ローカル宣言・名前探索・候補群 | `local_functions`、`local_generics`、`local_types`、`native_captures`、`function_families`、`overloads` |
+| β11の基盤・基本ライブラリ | `records`、`readonly_types`、`value_arguments`、`metadata`、`hash_reentry`、`standard_expansion` |
 | extern・標準宣言・ABI・信頼元 | `extern_generics`、`extern_callbacks`、`library_migration` |
 | IR・効果・契約・診断経路 | `pipeline`、`effects`、`bindings`、`readonly`、`noescape`、各`*_routes`、`heap_aliases` |
 | 最適化の意味と確保数 | `optimization`、`effect_optimization` |
@@ -109,6 +110,6 @@ CIの`Test`ワークフローも共通入口を使い、checks・tests・referen
 
 ## 文書例
 
-`tests/documentation.rs`は導入・チュートリアル・型の一覧・構造体・演算子・関数・捕捉・配列・アルゴリズム・データ構造の実行例と、fixed・readonly・noescapeの例を文書から直接読み取ります。契約の例では必要な呼び出しを補い、コメントの違反を有効にした拒否・診断の経路も検査します。`tests/extern_generics.rs`はexternの実行例を読み取ります。`tests/api.rs`は標準ライブラリの文書コメントから実行例を抽出し、APIの署名、説明、定義リンクも検査します。
+`tests/documentation.rs`は導入・チュートリアル・型の一覧・構造体・演算子・関数・捕捉・配列・アルゴリズム・データ構造の実行例と、fixed・readonly・noescapeの例を文書から直接読み取ります。契約の例では必要な呼び出しを補い、コメントの違反を有効にした拒否・診断の経路も検査します。順列列挙の掲載例も文書から直接実行します。`tests/extern_generics.rs`はexternの実行例を読み取ります。`tests/api.rs`は標準ライブラリの文書コメントから実行例を抽出し、APIの署名、説明、定義リンクも検査します。
 
 すべての文書の構文断片を自動検証するものではありません。掲載例を変更した場合は、実行可能な例・断片・意図的な失敗のどれかを明らかにし、対応するテストも更新します。[文書の編集方針](documentation.md)を参照してください。

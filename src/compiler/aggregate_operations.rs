@@ -1,6 +1,143 @@
 //! Source templates and metadata for automatically derived aggregate operations.
 use super::*;
+#[derive(Clone)]
+pub(super) struct Declaration {
+    scope: scopes::ScopeId,
+    name: String,
+    parameters: Vec<Name>,
+    arguments: Vec<Name>,
+}
 impl Compiler {
+    pub(super) fn copy_value(&mut self, value: Value, span: &Span) -> Result<Value, String> {
+        let ty = value.ty.clone();
+        let origin = self.context.declaration_scope;
+        self.context.declaration_scope = self.aggregate_scope(&ty);
+        let result = self.call("__copy__", vec![value], None, span);
+        self.context.declaration_scope = origin;
+        let result = result?;
+        self.same(&ty, &result.ty, span)?;
+        Ok(result)
+    }
+
+    pub(super) fn register_aggregate_declarations(&mut self, sources: &[Source]) {
+        for source in sources {
+            for statement in &source.statements {
+                let (name, parameters, arguments) = match statement {
+                    Stmt::UserFunction(name, parameters, arguments, ..)
+                    | Stmt::GenericExternFunction(name, parameters, arguments, ..) => {
+                        (name, parameters.clone(), arguments)
+                    }
+                    Stmt::Function(name, arguments, ..) => (name, vec![], arguments),
+                    _ => continue,
+                };
+                if !matches!(
+                    name.text.as_str(),
+                    "__copy__" | "__assign__" | "__eq__" | "__ne__" | "__hash__"
+                ) {
+                    continue;
+                }
+                self.aggregate_declarations.push(Declaration {
+                    scope: self.context.declaration_scope,
+                    name: name.text.clone(),
+                    parameters,
+                    arguments: arguments.iter().map(|(_, ty)| ty.clone()).collect(),
+                });
+            }
+        }
+    }
+
+    pub(super) fn aggregate_scope(&self, ty: &str) -> scopes::ScopeId {
+        let ty = access_types::underlying(ty);
+        let base = tuples::type_parts(ty).map_or(ty, |(base, _)| base);
+        self.type_declaration_scopes
+            .get(base)
+            .copied()
+            .unwrap_or(scopes::ScopeId::ROOT)
+    }
+
+    pub(super) fn has_manual_operation(&self, name: &str, ty: &str, arity: usize) -> bool {
+        self.aggregate_declarations.iter().any(|d| {
+            let mut bindings = BTreeMap::new();
+            d.scope == self.aggregate_scope(ty)
+                && d.name == name
+                && d.arguments.len() == arity
+                && d.arguments
+                    .iter()
+                    .all(|arg| generics::unify(&arg.text, ty, &d.parameters, &mut bindings))
+        })
+    }
+
+    pub(super) fn aggregate_candidate(&self, id: usize, arguments: &[String]) -> bool {
+        // Automatic operations belong to their type's scope, but do not create
+        // a lexical family hiding unrelated scalar/container operations.
+        !self.aggregate_operations.contains(&id)
+            || self.functions[id]
+                .params
+                .iter()
+                .zip(arguments)
+                .all(|(a, b)| access_types::same(a, b))
+    }
+
+    pub(super) fn register_aggregate_comparisons(
+        &mut self,
+        ty: &str,
+        is_enum: bool,
+        span: &Span,
+    ) -> Result<(), String> {
+        if !self.types.contains_key("Bool")
+            || ty.starts_with("Tuple<")
+            || ty.starts_with("__RuskCallable")
+        {
+            return Ok(());
+        }
+        for name in ["__eq__", "__ne__"] {
+            if self.has_manual_operation(name, ty, 2) {
+                continue;
+            }
+            let kind = if name == "__ne__" {
+                "tuple_ne"
+            } else if is_enum {
+                "enum_eq"
+            } else {
+                "tuple_eq"
+            };
+            let id =
+                self.native_function(name, vec![ty.into(); 2], "Bool", |_| String::new(), span)?;
+            self.functions[id].scope = self.aggregate_scope(ty);
+            self.aggregate_operations.insert(id);
+            self.native_derivation_tasks
+                .insert(id, (kind.into(), ty.into()));
+        }
+        Ok(())
+    }
+
+    pub(super) fn register_aggregate_hash(
+        &mut self,
+        ty: &str,
+        is_enum: bool,
+        span: &Span,
+    ) -> Result<(), String> {
+        if !self.types.contains_key("Int")
+            || ty.starts_with("__RuskCallable")
+            || self.has_manual_operation("__hash__", ty, 1)
+            || self.has_manual_operation("__eq__", ty, 2)
+        {
+            return Ok(());
+        }
+        let id =
+            self.native_function("__hash__", vec![ty.into()], "Int", |_| String::new(), span)?;
+        self.functions[id].scope = self.aggregate_scope(ty);
+        self.aggregate_operations.insert(id);
+        self.native_derivation_tasks.insert(
+            id,
+            (
+                if is_enum { "enum_hash" } else { "record_hash" }.into(),
+                ty.into(),
+            ),
+        );
+        Ok(())
+    }
+
     pub(super) fn native_operation_needed(&self, index: usize) -> bool {
         self.used.contains(&index)
             || self

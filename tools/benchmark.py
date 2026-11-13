@@ -44,7 +44,7 @@ INPUT_PY = 'import sys\nit=iter(map(int,sys.stdin.buffer.read().split())); n=nex
 OUTPUT_RUSK = 'in n:Int; for i in 0..n { wt i; }'
 OUTPUT_CPP = '#include <iostream>\nint main(){std::ios::sync_with_stdio(false);std::cin.tie(nullptr);int n;std::cin>>n;for(int i=0;i<n;++i)std::cout<<i<<"\\n";}'
 OUTPUT_PY = 'import sys\nn=int(input());sys.stdout.write("".join(str(i)+"\\n" for i in range(n)))\n'
-FENWICK_RUSK = 'include "'+str(ROOT/'examples/beta02/library/fenwick.rusk')+'"; in n,q:Int; let fw:=Fenwick(n,0); for i in 0..q { in op,x,y:Int; if op==0 { fw.add(x,y); } else { wt fw.range_sum(x,y); } }'
+FENWICK_RUSK = 'in n,q:Int; let fw:=FenwickTree(n,0); for i in 0..q { in op,x,y:Int; if op==0 { fw.apply(x,y); } else { wt fw.prod(x,y); } }'
 FENWICK_CPP = '#include <bits/stdc++.h>\nint main(){std::ios::sync_with_stdio(false);std::cin.tie(nullptr);int n,q;std::cin>>n>>q;std::vector<long long>t(n+1);auto sum=[&](int i){long long s=0;for(;i;i-=i&-i)s+=t[i];return s;};while(q--){int op,x,y;std::cin>>op>>x>>y;if(op==0){for(int i=x+1;i<=n;i+=i&-i)t[i]+=y;}else std::cout<<sum(y)-sum(x)<<"\\n";}}'
 FENWICK_PY = '''import sys
 it=iter(map(int,sys.stdin.buffer.read().split()));n=next(it);q=next(it);t=[0]*(n+1);out=[]

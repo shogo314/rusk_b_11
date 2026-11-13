@@ -1,0 +1,433 @@
+/// 実行時の長さを持つ、64ビット単位で格納するビット列です。
+extern type BitVec {
+    cpp_name: "RuskBitVec",
+}
+
+/// 長さNを型の一部に持つ固定長ビット列です。添字0を最下位ビットとします。
+extern type<N: Int> Bits {
+    cpp_name: "RuskBits<@{N}>",
+}
+
+/// 空のビット列を作ります。
+extern fn BitVec() -> BitVec {
+    code: "Obj<RuskBitVec> rusk_std_bit_vector_1([[maybe_unused]] Loc loc){return make_obj<RuskBitVec>(RuskBitVec{});}",
+    cpp_name: "rusk_std_bit_vector_1",
+    effects: "read_fresh",
+}
+
+/// 指定した長さのビットを同じ値で初期化します。
+extern fn BitVec(n: Int, value: Bool) -> BitVec {
+    code: "Obj<RuskBitVec> rusk_std_bit_vector_2(Obj<std::int64_t> n,Obj<bool> value,[[maybe_unused]] Loc loc){return make_obj<RuskBitVec>(RuskBitVec(RuskBitVec(*n,*value,loc)));}",
+    cpp_name: "rusk_std_bit_vector_2",
+    effects: "checked_read_fresh",
+}
+
+/// 0と1の文字列から構築します。右端がビット0です。
+extern fn BitVec(text: Str) -> BitVec {
+    code: "Obj<RuskBitVec> rusk_std_bit_vector_3(Obj<std::string> text,[[maybe_unused]] Loc loc){auto v=RuskBitVec::parse(*text,loc);return make_obj<RuskBitVec>(RuskBitVec(std::move(v)));}",
+    cpp_name: "rusk_std_bit_vector_3",
+    effects: "checked_read_fresh",
+}
+
+/// 全ビットを独立にコピーします。
+extern fn __copy__(a: BitVec) -> BitVec {
+    code: "Obj<RuskBitVec> rusk_std_bit_vector_4(Obj<RuskBitVec> a,[[maybe_unused]] Loc loc){return make_obj<RuskBitVec>(*a);}",
+    cpp_name: "rusk_std_bit_vector_4",
+    effects: "read_fresh",
+}
+
+/// 外側を保ってビット列をコピー代入します。
+extern fn __assign__(a: BitVec, b: BitVec) -> Unit {
+    code: "void rusk_std_bit_vector_5(Obj<RuskBitVec> a,Obj<RuskBitVec> b,[[maybe_unused]] Loc loc){auto words=b->words;a->words.swap(words);a->length=b->length;++a->version;}",
+    cpp_name: "rusk_std_bit_vector_5",
+    effects: "checked_resize_first",
+}
+
+/// ビット列のlenを返します。
+extern fn len(a: BitVec) -> Int {
+    code: "Obj<std::int64_t> rusk_std_bit_vector_6(Obj<RuskBitVec> a,[[maybe_unused]] Loc loc){return make_obj<std::int64_t>(checked_int(a->length,loc));}",
+    cpp_name: "rusk_std_bit_vector_6",
+    effects: "checked_read_fresh",
+}
+
+/// ビット列のcountを返します。
+extern fn count(a: BitVec) -> Int {
+    code: "Obj<std::int64_t> rusk_std_bit_vector_7(Obj<RuskBitVec> a,[[maybe_unused]] Loc loc){return make_obj<std::int64_t>(checked_int(a->count(),loc));}",
+    cpp_name: "rusk_std_bit_vector_7",
+    effects: "checked_read_fresh",
+}
+
+/// ビット列のanyを返します。
+extern fn any(a: BitVec) -> Bool {
+    code: "Obj<bool> rusk_std_bit_vector_8(Obj<RuskBitVec> a,[[maybe_unused]] Loc loc){return make_obj<bool>(a->count()!=0);}",
+    cpp_name: "rusk_std_bit_vector_8",
+    effects: "checked_read_fresh",
+}
+
+/// ビット列のallを返します。
+extern fn all(a: BitVec) -> Bool {
+    code: "Obj<bool> rusk_std_bit_vector_9(Obj<RuskBitVec> a,[[maybe_unused]] Loc loc){return make_obj<bool>(a->count()==a->length);}",
+    cpp_name: "rusk_std_bit_vector_9",
+    effects: "checked_read_fresh",
+}
+
+/// ビット列のnoneを返します。
+extern fn none(a: BitVec) -> Bool {
+    code: "Obj<bool> rusk_std_bit_vector_10(Obj<RuskBitVec> a,[[maybe_unused]] Loc loc){return make_obj<bool>(a->count()==0);}",
+    cpp_name: "rusk_std_bit_vector_10",
+    effects: "checked_read_fresh",
+}
+
+/// 指定ビットの独立した値を返します。添字式の更新には:=を使います。
+extern fn get(a: BitVec, i: Int) -> Bool {
+    code: "Obj<bool> rusk_std_bit_vector_11(Obj<RuskBitVec> a,Obj<std::int64_t> i,[[maybe_unused]] Loc loc){return make_obj<bool>(a->at(checked_index(a->length,*i,loc)));}",
+    cpp_name: "rusk_std_bit_vector_11",
+    effects: "checked_read_fresh",
+}
+
+/// 指定ビットの独立した値を返します。添字式の更新には:=を使います。
+extern fn __getitem__(a: BitVec, i: Int) -> readonly Bool {
+    code: "Obj<bool> rusk_std_bit_vector_12(Obj<RuskBitVec> a,Obj<std::int64_t> i,[[maybe_unused]] Loc loc){return make_obj<bool>(a->at(checked_index(a->length,*i,loc)));}",
+    cpp_name: "rusk_std_bit_vector_12",
+    effects: "checked_read_fresh",
+}
+
+/// 指定位置のビットを更新します。
+extern fn set(a: BitVec, i: Int, value: Bool) -> Unit {
+    code: "void rusk_std_bit_vector_13(Obj<RuskBitVec> a,Obj<std::int64_t> i,Obj<bool> value,[[maybe_unused]] Loc loc){a->set(checked_index(a->length,*i,loc),*value);}",
+    cpp_name: "rusk_std_bit_vector_13",
+    effects: "checked_write_first",
+}
+
+/// 指定位置のビットを更新します。
+extern fn __setitem__(a: BitVec, i: Int, value: Bool) -> Bool {
+    code: "Obj<bool> rusk_std_bit_vector_14(Obj<RuskBitVec> a,Obj<std::int64_t> i,Obj<bool> value,[[maybe_unused]] Loc loc){a->set(checked_index(a->length,*i,loc),*value);return make_obj<bool>(*value);}",
+    cpp_name: "rusk_std_bit_vector_14",
+    effects: "checked_mutate_fresh",
+}
+
+/// 指定ビットを反転します。
+extern fn flip(a: BitVec, i: Int) -> Unit {
+    code: "void rusk_std_bit_vector_15(Obj<RuskBitVec> a,Obj<std::int64_t> i,[[maybe_unused]] Loc loc){auto p=checked_index(a->length,*i,loc);a->set(p,!a->at(p));}",
+    cpp_name: "rusk_std_bit_vector_15",
+    effects: "checked_write_first",
+}
+
+/// 最上位ビットから0と1の文字列にします。
+extern fn Str(a: BitVec) -> Str {
+    code: "Obj<std::string> rusk_std_bit_vector_16(Obj<RuskBitVec> a,[[maybe_unused]] Loc loc){return make_obj<std::string>(a->str());}",
+    cpp_name: "rusk_std_bit_vector_16",
+    effects: "read_fresh",
+}
+
+/// 最上位ビットから文字列として出力します。
+extern fn __write__(a: BitVec) -> Unit {
+    code: "void rusk_std_bit_vector_17(Obj<RuskBitVec> a,[[maybe_unused]] Loc loc){rusk_write(a->str());}",
+    cpp_name: "rusk_std_bit_vector_17",
+    effects: "io_write",
+}
+
+/// 長さとビットの内容を比較します。
+extern fn __eq__(a: BitVec, b: BitVec) -> Bool {
+    code: "Obj<bool> rusk_std_bit_vector_18(Obj<RuskBitVec> a,Obj<RuskBitVec> b,[[maybe_unused]] Loc loc){return make_obj<bool>((a->length==b->length&&a->words==b->words));}",
+    cpp_name: "rusk_std_bit_vector_18",
+    effects: "read_fresh",
+}
+
+/// 長さとビットの内容を比較します。
+extern fn __ne__(a: BitVec, b: BitVec) -> Bool {
+    code: "Obj<bool> rusk_std_bit_vector_19(Obj<RuskBitVec> a,Obj<RuskBitVec> b,[[maybe_unused]] Loc loc){return make_obj<bool>((a->length==b->length&&a->words==b->words)==false);}",
+    cpp_name: "rusk_std_bit_vector_19",
+    effects: "read_fresh",
+}
+
+/// 同じ長さのビット列に論理演算を適用します。
+extern fn __bitand__(a: BitVec, b: BitVec) -> BitVec {
+    code: "Obj<RuskBitVec> rusk_std_bit_vector_20(Obj<RuskBitVec> a,Obj<RuskBitVec> b,[[maybe_unused]] Loc loc){if(a->length!=b->length)fail(loc,\"bit length mismatch\");auto r=make_obj<RuskBitVec>(*a);for(std::size_t i=0;i<r->words.size();++i)r->words[i]=a->words[i]&b->words[i];return r;}",
+    cpp_name: "rusk_std_bit_vector_20",
+    effects: "checked_read_fresh",
+}
+
+/// 同じ長さのビット列に論理演算を適用します。
+extern fn __bitor__(a: BitVec, b: BitVec) -> BitVec {
+    code: "Obj<RuskBitVec> rusk_std_bit_vector_21(Obj<RuskBitVec> a,Obj<RuskBitVec> b,[[maybe_unused]] Loc loc){if(a->length!=b->length)fail(loc,\"bit length mismatch\");auto r=make_obj<RuskBitVec>(*a);for(std::size_t i=0;i<r->words.size();++i)r->words[i]=a->words[i]|b->words[i];return r;}",
+    cpp_name: "rusk_std_bit_vector_21",
+    effects: "checked_read_fresh",
+}
+
+/// 同じ長さのビット列に論理演算を適用します。
+extern fn __bitxor__(a: BitVec, b: BitVec) -> BitVec {
+    code: "Obj<RuskBitVec> rusk_std_bit_vector_22(Obj<RuskBitVec> a,Obj<RuskBitVec> b,[[maybe_unused]] Loc loc){if(a->length!=b->length)fail(loc,\"bit length mismatch\");auto r=make_obj<RuskBitVec>(*a);for(std::size_t i=0;i<r->words.size();++i)r->words[i]=a->words[i]^b->words[i];return r;}",
+    cpp_name: "rusk_std_bit_vector_22",
+    effects: "checked_read_fresh",
+}
+
+/// 長さを保って全ビットを反転します。
+extern fn __bitnot__(a: BitVec) -> BitVec {
+    code: "Obj<RuskBitVec> rusk_std_bit_vector_23(Obj<RuskBitVec> a,[[maybe_unused]] Loc loc){auto r=make_obj<RuskBitVec>(*a);for(auto& w:r->words)w=~w;r->trim();return r;}",
+    cpp_name: "rusk_std_bit_vector_23",
+    effects: "read_fresh",
+}
+
+/// ゼロを詰めてシフトします。負の量は逆方向で、長さは変えません。
+extern fn __shl__(a: BitVec, n: Int) -> BitVec {
+    code: "Obj<RuskBitVec> rusk_std_bit_vector_24(Obj<RuskBitVec> a,Obj<std::int64_t> n,[[maybe_unused]] Loc loc){return make_obj<RuskBitVec>(RuskBitVec(RuskBitVec::shift(*a,*n,true,loc)));}",
+    cpp_name: "rusk_std_bit_vector_24",
+    effects: "checked_read_fresh",
+}
+
+/// ゼロを詰めてシフトします。負の量は逆方向で、長さは変えません。
+extern fn __shr__(a: BitVec, n: Int) -> BitVec {
+    code: "Obj<RuskBitVec> rusk_std_bit_vector_25(Obj<RuskBitVec> a,Obj<std::int64_t> n,[[maybe_unused]] Loc loc){return make_obj<RuskBitVec>(RuskBitVec(RuskBitVec::shift(*a,*n,false,loc)));}",
+    cpp_name: "rusk_std_bit_vector_25",
+    effects: "checked_read_fresh",
+}
+
+/// 長さと全ビットからハッシュを計算します。
+extern fn __hash__(a: BitVec) -> Int {
+    code: "Obj<std::int64_t> rusk_std_bit_vector_26(Obj<RuskBitVec> a,[[maybe_unused]] Loc loc){std::size_t h=a->length;for(auto w:a->words)rusk_hash_combine(h,std::hash<std::uint64_t>{}(w));return make_obj<std::int64_t>(static_cast<std::int64_t>(h));}",
+    cpp_name: "rusk_std_bit_vector_26",
+    effects: "read_fresh",
+}
+
+/// 所有元を保持し、構造変更を検出する走査状態です。
+extern type BitVecIter {
+    cpp_name: "RuskLinearIter<RuskBitVec>",
+    representation: "iterator<Bool>",
+    retains: "owner:BitVec",
+}
+
+/// 所有元を共有する新しい走査状態を作ります。
+extern fn __iter__(a: BitVec) -> BitVecIter {
+    code: "Obj<RuskLinearIter<RuskBitVec>> rusk_std_bit_vector_27(Obj<RuskBitVec> a,[[maybe_unused]] Loc loc){return make_obj<RuskLinearIter<RuskBitVec>>(RuskLinearIter<RuskBitVec>(a));}",
+    cpp_name: "rusk_std_bit_vector_27",
+    effects: "read_fresh",
+    aliases: "return.owner=0",
+}
+
+/// 現在の走査状態を共有します。
+extern fn __iter__(it: BitVecIter) -> BitVecIter {
+    code: "Obj<RuskLinearIter<RuskBitVec>> rusk_std_bit_vector_28(Obj<RuskLinearIter<RuskBitVec>> it,[[maybe_unused]] Loc loc){return it;}",
+    cpp_name: "rusk_std_bit_vector_28",
+    effects: "read_fresh",
+    aliases: "return=0",
+}
+
+/// 次の要素があるか調べます。走査中の構造変更は失敗します。
+extern fn __iter_has_next__(it: BitVecIter) -> Bool {
+    code: "Obj<bool> rusk_std_bit_vector_29(Obj<RuskLinearIter<RuskBitVec>> it,[[maybe_unused]] Loc loc){if(it->finished)return make_obj<bool>(false);rusk_guard_iter(it,loc);if(it->index>=it->owner->size()){it->finished=true;return make_obj<bool>(false);}return make_obj<bool>(true);}",
+    cpp_name: "rusk_std_bit_vector_29",
+}
+
+/// 次の要素を返して位置を進めます。終了後の取得は失敗します。
+extern fn __iter_next__(it: BitVecIter) -> Bool {
+    code: "Obj<bool> rusk_std_bit_vector_30(Obj<RuskLinearIter<RuskBitVec>> it,[[maybe_unused]] Loc loc){if(it->finished)fail(loc,\"iterator exhausted\");rusk_guard_iter(it,loc);if(it->index>=it->owner->size()){it->finished=true;fail(loc,\"iterator exhausted\");}return make_obj<bool>(it->owner->at(it->index++));}",
+    cpp_name: "rusk_std_bit_vector_30",
+}
+
+/// 位置をコピーし、所有元を共有する走査状態を返します。
+extern fn __copy__(it: BitVecIter) -> BitVecIter {
+    code: "Obj<RuskLinearIter<RuskBitVec>> rusk_std_bit_vector_31(Obj<RuskLinearIter<RuskBitVec>> it,[[maybe_unused]] Loc loc){rusk_guard_iter(it,loc);return make_obj<RuskLinearIter<RuskBitVec>>(*it);}",
+    cpp_name: "rusk_std_bit_vector_31",
+    effects: "checked_read_fresh",
+    aliases: "return.owner=0.owner",
+}
+
+/// 外側の同一性を保ち、走査位置と所有元を更新します。
+extern fn __assign__(a: BitVecIter, b: BitVecIter) -> Unit {
+    code: "void rusk_std_bit_vector_32(Obj<RuskLinearIter<RuskBitVec>> a,Obj<RuskLinearIter<RuskBitVec>> b,[[maybe_unused]] Loc loc){rusk_guard_iter(b,loc);auto value=*b;*a=std::move(value);}",
+    cpp_name: "rusk_std_bit_vector_32",
+}
+
+/// 指定した長さのビットを同じ値で初期化します。
+extern fn Bits<N: Int>(value: Bool) -> Bits<N> {
+    code: "Obj<@{Bits<N>}> @{fn}(Obj<@{Bool}> value,[[maybe_unused]] Loc loc){return make_obj<@{Bits<N>}>(@{Bits<N>}(RuskBitVec(@{N},*value,loc)));}",
+    effects: "checked_read_fresh",
+}
+
+/// 0と1の文字列から構築します。右端がビット0です。
+extern fn Bits<N: Int>(text: Str) -> Bits<N> {
+    code: "Obj<@{Bits<N>}> @{fn}(Obj<@{Str}> text,[[maybe_unused]] Loc loc){auto v=RuskBitVec::parse(*text,loc);if(@{N}<0||v.length!=static_cast<std::uint64_t>(@{N}))fail(loc,\"bit length mismatch\");return make_obj<@{Bits<N>}>(@{Bits<N>}(std::move(v)));}",
+    effects: "checked_read_fresh",
+}
+
+/// 全ビットを独立にコピーします。
+extern fn __copy__<N: Int>(a: Bits<N>) -> Bits<N> {
+    code: "Obj<@{Bits<N>}> @{fn}(Obj<@{Bits<N>}> a,[[maybe_unused]] Loc loc){return make_obj<@{Bits<N>}>(*a);}",
+    effects: "read_fresh",
+}
+
+/// 外側を保ってビット列をコピー代入します。
+extern fn __assign__<N: Int>(a: Bits<N>, b: Bits<N>) -> Unit {
+    code: "void @{fn}(Obj<@{Bits<N>}> a,Obj<@{Bits<N>}> b,[[maybe_unused]] Loc loc){auto words=b->words;a->words.swap(words);a->length=b->length;++a->version;}",
+    effects: "checked_resize_first",
+}
+
+/// ビット列のlenを返します。
+extern fn len<N: Int>(a: Bits<N>) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{Bits<N>}> a,[[maybe_unused]] Loc loc){return make_obj<std::int64_t>(checked_int(a->length,loc));}",
+    effects: "checked_read_fresh",
+}
+
+/// ビット列のcountを返します。
+extern fn count<N: Int>(a: Bits<N>) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{Bits<N>}> a,[[maybe_unused]] Loc loc){return make_obj<std::int64_t>(checked_int(a->count(),loc));}",
+    effects: "checked_read_fresh",
+}
+
+/// ビット列のanyを返します。
+extern fn any<N: Int>(a: Bits<N>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{Bits<N>}> a,[[maybe_unused]] Loc loc){return make_obj<bool>(a->count()!=0);}",
+    effects: "checked_read_fresh",
+}
+
+/// ビット列のallを返します。
+extern fn all<N: Int>(a: Bits<N>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{Bits<N>}> a,[[maybe_unused]] Loc loc){return make_obj<bool>(a->count()==a->length);}",
+    effects: "checked_read_fresh",
+}
+
+/// ビット列のnoneを返します。
+extern fn none<N: Int>(a: Bits<N>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{Bits<N>}> a,[[maybe_unused]] Loc loc){return make_obj<bool>(a->count()==0);}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定ビットの独立した値を返します。添字式の更新には:=を使います。
+extern fn get<N: Int>(a: Bits<N>, i: Int) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{Bits<N>}> a,Obj<@{Int}> i,[[maybe_unused]] Loc loc){return make_obj<bool>(a->at(checked_index(a->length,*i,loc)));}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定ビットの独立した値を返します。添字式の更新には:=を使います。
+extern fn __getitem__<N: Int>(a: Bits<N>, i: Int) -> readonly Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{Bits<N>}> a,Obj<@{Int}> i,[[maybe_unused]] Loc loc){return make_obj<bool>(a->at(checked_index(a->length,*i,loc)));}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定位置のビットを更新します。
+extern fn set<N: Int>(a: Bits<N>, i: Int, value: Bool) -> Unit {
+    code: "void @{fn}(Obj<@{Bits<N>}> a,Obj<@{Int}> i,Obj<@{Bool}> value,[[maybe_unused]] Loc loc){a->set(checked_index(a->length,*i,loc),*value);}",
+    effects: "checked_write_first",
+}
+
+/// 指定位置のビットを更新します。
+extern fn __setitem__<N: Int>(a: Bits<N>, i: Int, value: Bool) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{Bits<N>}> a,Obj<@{Int}> i,Obj<@{Bool}> value,[[maybe_unused]] Loc loc){a->set(checked_index(a->length,*i,loc),*value);return make_obj<bool>(*value);}",
+    effects: "checked_mutate_fresh",
+}
+
+/// 指定ビットを反転します。
+extern fn flip<N: Int>(a: Bits<N>, i: Int) -> Unit {
+    code: "void @{fn}(Obj<@{Bits<N>}> a,Obj<@{Int}> i,[[maybe_unused]] Loc loc){auto p=checked_index(a->length,*i,loc);a->set(p,!a->at(p));}",
+    effects: "checked_write_first",
+}
+
+/// 最上位ビットから0と1の文字列にします。
+extern fn Str<N: Int>(a: Bits<N>) -> Str {
+    code: "Obj<@{Str}> @{fn}(Obj<@{Bits<N>}> a,[[maybe_unused]] Loc loc){return make_obj<std::string>(a->str());}",
+    effects: "read_fresh",
+}
+
+/// 最上位ビットから文字列として出力します。
+extern fn __write__<N: Int>(a: Bits<N>) -> Unit {
+    code: "void @{fn}(Obj<@{Bits<N>}> a,[[maybe_unused]] Loc loc){rusk_write(a->str());}",
+    effects: "io_write",
+}
+
+/// 長さとビットの内容を比較します。
+extern fn __eq__<N: Int>(a: Bits<N>, b: Bits<N>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{Bits<N>}> a,Obj<@{Bits<N>}> b,[[maybe_unused]] Loc loc){return make_obj<bool>((a->length==b->length&&a->words==b->words));}",
+    effects: "read_fresh",
+}
+
+/// 長さとビットの内容を比較します。
+extern fn __ne__<N: Int>(a: Bits<N>, b: Bits<N>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{Bits<N>}> a,Obj<@{Bits<N>}> b,[[maybe_unused]] Loc loc){return make_obj<bool>((a->length==b->length&&a->words==b->words)==false);}",
+    effects: "read_fresh",
+}
+
+/// 同じ長さのビット列に論理演算を適用します。
+extern fn __bitand__<N: Int>(a: Bits<N>, b: Bits<N>) -> Bits<N> {
+    code: "Obj<@{Bits<N>}> @{fn}(Obj<@{Bits<N>}> a,Obj<@{Bits<N>}> b,[[maybe_unused]] Loc loc){if(a->length!=b->length)fail(loc,\"bit length mismatch\");auto r=make_obj<@{Bits<N>}>(*a);for(std::size_t i=0;i<r->words.size();++i)r->words[i]=a->words[i]&b->words[i];return r;}",
+    effects: "checked_read_fresh",
+}
+
+/// 同じ長さのビット列に論理演算を適用します。
+extern fn __bitor__<N: Int>(a: Bits<N>, b: Bits<N>) -> Bits<N> {
+    code: "Obj<@{Bits<N>}> @{fn}(Obj<@{Bits<N>}> a,Obj<@{Bits<N>}> b,[[maybe_unused]] Loc loc){if(a->length!=b->length)fail(loc,\"bit length mismatch\");auto r=make_obj<@{Bits<N>}>(*a);for(std::size_t i=0;i<r->words.size();++i)r->words[i]=a->words[i]|b->words[i];return r;}",
+    effects: "checked_read_fresh",
+}
+
+/// 同じ長さのビット列に論理演算を適用します。
+extern fn __bitxor__<N: Int>(a: Bits<N>, b: Bits<N>) -> Bits<N> {
+    code: "Obj<@{Bits<N>}> @{fn}(Obj<@{Bits<N>}> a,Obj<@{Bits<N>}> b,[[maybe_unused]] Loc loc){if(a->length!=b->length)fail(loc,\"bit length mismatch\");auto r=make_obj<@{Bits<N>}>(*a);for(std::size_t i=0;i<r->words.size();++i)r->words[i]=a->words[i]^b->words[i];return r;}",
+    effects: "checked_read_fresh",
+}
+
+/// 長さを保って全ビットを反転します。
+extern fn __bitnot__<N: Int>(a: Bits<N>) -> Bits<N> {
+    code: "Obj<@{Bits<N>}> @{fn}(Obj<@{Bits<N>}> a,[[maybe_unused]] Loc loc){auto r=make_obj<@{Bits<N>}>(*a);for(auto& w:r->words)w=~w;r->trim();return r;}",
+    effects: "read_fresh",
+}
+
+/// ゼロを詰めてシフトします。負の量は逆方向で、長さは変えません。
+extern fn __shl__<N: Int>(a: Bits<N>, n: Int) -> Bits<N> {
+    code: "Obj<@{Bits<N>}> @{fn}(Obj<@{Bits<N>}> a,Obj<@{Int}> n,[[maybe_unused]] Loc loc){return make_obj<@{Bits<N>}>(@{Bits<N>}(RuskBitVec::shift(*a,*n,true,loc)));}",
+    effects: "checked_read_fresh",
+}
+
+/// ゼロを詰めてシフトします。負の量は逆方向で、長さは変えません。
+extern fn __shr__<N: Int>(a: Bits<N>, n: Int) -> Bits<N> {
+    code: "Obj<@{Bits<N>}> @{fn}(Obj<@{Bits<N>}> a,Obj<@{Int}> n,[[maybe_unused]] Loc loc){return make_obj<@{Bits<N>}>(@{Bits<N>}(RuskBitVec::shift(*a,*n,false,loc)));}",
+    effects: "checked_read_fresh",
+}
+
+/// 長さと全ビットからハッシュを計算します。
+extern fn __hash__<N: Int>(a: Bits<N>) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{Bits<N>}> a,[[maybe_unused]] Loc loc){std::size_t h=a->length;for(auto w:a->words)rusk_hash_combine(h,std::hash<std::uint64_t>{}(w));return make_obj<std::int64_t>(static_cast<std::int64_t>(h));}",
+    effects: "read_fresh",
+}
+
+/// 所有元を保持し、構造変更を検出する走査状態です。
+extern type<N: Int> BitsIter<N> {
+    cpp_name: "RuskLinearIter<@{Bits<N>}>",
+    representation: "iterator<Bool>",
+    retains: "owner:Bits<N>",
+}
+
+/// 所有元を共有する新しい走査状態を作ります。
+extern fn __iter__<N: Int>(a: Bits<N>) -> BitsIter<N> {
+    code: "Obj<@{BitsIter<N>}> @{fn}(Obj<@{Bits<N>}> a,[[maybe_unused]] Loc loc){return make_obj<@{BitsIter<N>}>(@{BitsIter<N>}(a));}",
+    effects: "read_fresh",
+    aliases: "return.owner=0",
+}
+
+/// 現在の走査状態を共有します。
+extern fn __iter__<N: Int>(it: BitsIter<N>) -> BitsIter<N> {
+    code: "Obj<@{BitsIter<N>}> @{fn}(Obj<@{BitsIter<N>}> it,[[maybe_unused]] Loc loc){return it;}",
+    effects: "read_fresh",
+    aliases: "return=0",
+}
+
+/// 次の要素があるか調べます。走査中の構造変更は失敗します。
+extern fn __iter_has_next__<N: Int>(it: BitsIter<N>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{BitsIter<N>}> it,[[maybe_unused]] Loc loc){if(it->finished)return make_obj<bool>(false);rusk_guard_iter(it,loc);if(it->index>=it->owner->size()){it->finished=true;return make_obj<bool>(false);}return make_obj<bool>(true);}",
+}
+
+/// 次の要素を返して位置を進めます。終了後の取得は失敗します。
+extern fn __iter_next__<N: Int>(it: BitsIter<N>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{BitsIter<N>}> it,[[maybe_unused]] Loc loc){if(it->finished)fail(loc,\"iterator exhausted\");rusk_guard_iter(it,loc);if(it->index>=it->owner->size()){it->finished=true;fail(loc,\"iterator exhausted\");}return make_obj<bool>(it->owner->at(it->index++));}",
+}
+
+/// 位置をコピーし、所有元を共有する走査状態を返します。
+extern fn __copy__<N: Int>(it: BitsIter<N>) -> BitsIter<N> {
+    code: "Obj<@{BitsIter<N>}> @{fn}(Obj<@{BitsIter<N>}> it,[[maybe_unused]] Loc loc){rusk_guard_iter(it,loc);return make_obj<@{BitsIter<N>}>(*it);}",
+    effects: "checked_read_fresh",
+    aliases: "return.owner=0.owner",
+}
+
+/// 外側の同一性を保ち、走査位置と所有元を更新します。
+extern fn __assign__<N: Int>(a: BitsIter<N>, b: BitsIter<N>) -> Unit {
+    code: "void @{fn}(Obj<@{BitsIter<N>}> a,Obj<@{BitsIter<N>}> b,[[maybe_unused]] Loc loc){rusk_guard_iter(b,loc);auto value=*b;*a=std::move(value);}",
+}

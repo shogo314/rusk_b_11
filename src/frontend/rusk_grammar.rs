@@ -21,15 +21,22 @@ impl<'t> RuskGrammarTrait<'t> for RuskGrammar<'t> {
         if self.collect_layout {
             self.layout
                 .type_starts
-                .insert(arg.identifier.identifier.location.start());
+                .insert(arg.type_parameter.identifier.identifier.location.start());
         }
         Ok(())
     }
     fn type_arguments(&mut self, arg: &g::TypeArguments<'t>) -> parol_runtime::Result<()> {
         fn start(ty: &g::TypeName<'_>) -> usize {
             match ty {
+                g::TypeName::ReadonlyType(t) => t.readonly_type.readonly.location.start(),
                 g::TypeName::NamedType(n) => n.named_type.identifier.identifier.location.start(),
                 g::TypeName::TupleType(t) => start(&t.tuple_type.type_name),
+                g::TypeName::ConstantArgument(t) => {
+                    super::ast::constant_token(&t.constant_argument)
+                        .0
+                        .location
+                        .start()
+                }
             }
         }
         if self.collect_layout {
@@ -53,6 +60,15 @@ impl<'t> RuskGrammarTrait<'t> for RuskGrammar<'t> {
     fn right_angle_op(&mut self, arg: &g::RightAngleOp<'t>) -> parol_runtime::Result<()> {
         if let Some(tail) = &arg.right_angle_op_opt {
             self.shift_operator(&arg.g_t, &tail.g_t);
+        }
+        Ok(())
+    }
+    fn negative_int_argument(
+        &mut self,
+        arg: &g::NegativeIntArgument<'t>,
+    ) -> parol_runtime::Result<()> {
+        if self.collect_layout {
+            self.layout.unary.insert(arg.minus.location.start());
         }
         Ok(())
     }
@@ -133,15 +149,19 @@ impl<'t> RuskGrammarTrait<'t> for RuskGrammar<'t> {
         Ok(())
     }
     fn extern_type(&mut self, arg: &g::ExternType<'t>) -> parol_runtime::Result<()> {
-        self.declaration("extern type", first_type_identifier(&arg.type_name));
+        if let Some(identifier) = first_type_identifier(&arg.type_name) {
+            self.declaration("extern type", identifier);
+        }
         Ok(())
     }
 }
 
-fn first_type_identifier<'a, 't>(mut ty: &'a g::TypeName<'t>) -> &'a g::Identifier<'t> {
+fn first_type_identifier<'a, 't>(mut ty: &'a g::TypeName<'t>) -> Option<&'a g::Identifier<'t>> {
     loop {
         match ty {
-            g::TypeName::NamedType(named) => return &named.named_type.identifier,
+            g::TypeName::ReadonlyType(t) => ty = &t.readonly_type.type_name,
+            g::TypeName::NamedType(named) => return Some(&named.named_type.identifier),
+            g::TypeName::ConstantArgument(_) => return None,
             g::TypeName::TupleType(tuple) => ty = &tuple.tuple_type.type_name,
         }
     }

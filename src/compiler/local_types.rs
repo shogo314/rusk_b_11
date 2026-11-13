@@ -9,6 +9,9 @@ pub(super) struct LocalTypes {
 
 impl Compiler {
     pub(super) fn diagnostic_type(&self, text: &str) -> String {
+        if let Some(base) = access_types::inner(text) {
+            return format!("readonly {}", self.diagnostic_type(base));
+        }
         let (base, args) =
             tuples::type_parts(text).map_or((text, None), |(base, args)| (base, Some(args)));
         let name = self.local_types.names.get(base);
@@ -71,7 +74,7 @@ impl Compiler {
         name.into()
     }
 
-    fn resolve_type_text(&self, text: &str, bound: &BTreeSet<String>) -> String {
+    pub(super) fn resolve_type_text(&self, text: &str, bound: &BTreeSet<String>) -> String {
         if let Some((base, args)) = tuples::type_parts(text) {
             let base = if bound.contains(base) {
                 base.into()

@@ -79,6 +79,7 @@ impl Compiler {
             return Err(pattern.span.error("pattern lowering limit exceeded"));
         }
         *budget -= 1;
+        let value = self.readonly_view(value.clone(), &pattern.span);
         match &pattern.kind {
             Kind::Wild(name) => {
                 if let Some(n) = name {

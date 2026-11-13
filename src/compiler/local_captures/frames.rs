@@ -106,6 +106,7 @@ impl Compiler {
         let variable = self.environments.frames[frame].available[name].clone();
         let source = self.environments.frames[frame].sources[name].clone();
         let name = Name {
+            constant: None,
             text: name.into(),
             span: self.functions[function].name.span.clone(),
         };

@@ -274,6 +274,13 @@ impl Program {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        if self
+            .readonly_members
+            .iter()
+            .any(|ty| !self.types.contains_key(ty))
+        {
+            return Err("unknown readonly member type".into());
+        }
         let base = Check {
             program: self,
             values: BTreeMap::new(),
@@ -408,6 +415,7 @@ mod tests {
             value: Literal::Bool(true),
         };
         let mut program = Program {
+            readonly_members: Default::default(),
             types: [("Bool".into(), Type::Scalar(Scalar::Bool))].into(),
             functions: vec![],
             main: Body {
@@ -444,6 +452,7 @@ mod tests {
             ty: "Bool".into(),
         };
         let mut program = Program {
+            readonly_members: Default::default(),
             types: [
                 ("Int".into(), Type::Scalar(crate::ir::hir::Scalar::I64)),
                 ("Bool".into(), Type::Scalar(crate::ir::hir::Scalar::Bool)),

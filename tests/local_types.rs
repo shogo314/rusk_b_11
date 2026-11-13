@@ -225,12 +225,6 @@ same_type(a,b);
     assert!(!out.status.success());
     assert!(error.contains("Item (declared at"), "{error}");
     assert!(!error.contains("__RuskLocalType"), "{error}");
-    for source in [
-        "{struct Node{next:Node;}}",
-        "{struct A{value:B;}enum B{Some(A)}}",
-    ] {
-        rejects(source, "recursive");
-    }
 }
 
 #[test]

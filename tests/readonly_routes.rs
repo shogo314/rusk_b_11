@@ -162,7 +162,7 @@ fn mutation_paths_enter_nested_callees_and_choose_the_restricted_argument() {
 #[test]
 fn opaque_effects_and_untracked_heap_routes_are_explicitly_uncertain() {
     let conservative = diagnostic(
-        "struct Pair{left:Int;right:Int;}fn change(pair:Pair){pair.right=2;}readonly let source:=1;let pair:=Pair{left:source,right:0};change(pair);",
+        r#"struct Pair{left:Int;right:Int;}extern fn opaque(pair:Pair){cpp_name:"opaque",code:"void opaque(auto,Loc){}",}fn change(pair:Pair){opaque(pair);}readonly let source:=1;let pair:=Pair{left:source,right:0};change(pair);"#,
     );
     assert!(
         conservative.contains("cannot prove readonly access is preserved")
@@ -170,8 +170,7 @@ fn opaque_effects_and_untracked_heap_routes_are_explicitly_uncertain() {
         "{conservative}"
     );
     assert!(
-        path(&conservative)
-            .contains("precise operation for this contained readonly access is not reconstructed"),
+        path(&conservative).contains("argument 1 of 'opaque' may modify this access"),
         "{conservative}"
     );
     assert!(
@@ -274,4 +273,16 @@ fn different_origins_and_shadowed_names_do_not_supply_false_histories() {
         path(&message).contains("main.rusk:3:") && !path(&message).contains("main.rusk:1:"),
         "{message}"
     );
+}
+
+#[test]
+fn known_writes_to_other_fields_do_not_reject_contained_readonly_access() {
+    let source = "struct Pair{left:Int;right:Int;}fn change(pair:Pair){pair.right=2;}readonly let source:=1;let pair:=Pair{left:source,right:0};change(pair);wt pair.left,pair.right;";
+    let out = Case::new(source).run("");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(out.stdout, b"1 2\n");
 }

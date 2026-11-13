@@ -1,6 +1,6 @@
 # β04の実例
 
-`library/priority_queue.rusk` は比較関数を指定する優先度キュー、`library/segment_tree.rusk` は演算を指定するセグメント木です。後者は `max_right` / `min_left` による境界探索にも対応します。
+旧`library/`の実装はβ11で標準の`lib/data_structures/priority-queue.rusk`と`lib/data_structures/segtree.rusk`へ移しました。includeは不要です。後者は `max_right` / `min_left` による境界探索にも対応します。
 
 | 解答例 | 利用する機能 |
 |---|---|
@@ -12,4 +12,4 @@
 | `../aoj/itp1_4_d_fold.test.rusk` | タプルを蓄積値にしたfold |
 | `../aoj/alds1_4_d.test.rusk` | 捕捉付きの条件関数を渡す二分探索 |
 
-共通の `python3 tools/test.py` から、保存したAtCoderサンプル・Cargoの回帰テストと、これらの公開テストを確認できます。APIと前提条件は `docs/library/beta04.md`、捕捉の意味は `docs/reference/beta04.md` を参照してください。
+共通の `python3 tools/test.py` から、保存したAtCoderサンプル・Cargoの回帰テストと、これらの公開テストを確認できます。APIと前提条件は `docs/library/algorithms.md`、捕捉の意味は `docs/reference/closures.md` を参照してください。

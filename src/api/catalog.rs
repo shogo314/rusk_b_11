@@ -87,7 +87,7 @@ impl Parameter {
     fn new((name, ty): (DeclaredName, Name)) -> Self {
         Self {
             name: name.name.text,
-            ty: ty.text,
+            ty: type_text(&ty.text),
             binding: name.binding.map(|a| match a.mode {
                 BindingMode::Fixed => "fixed",
                 BindingMode::Rebindable => "rebindable",
@@ -202,7 +202,13 @@ fn entry(
 }
 
 fn type_entry(origin: Origin, name: Name, kind: &'static str, generics: Vec<Name>) -> Entry {
-    let type_parameters = generics.into_iter().map(|p| p.text).collect::<Vec<_>>();
+    let type_parameters = generics
+        .into_iter()
+        .map(|p| {
+            p.constant
+                .map_or(p.text.clone(), |kind| format!("{}: {kind}", p.text))
+        })
+        .collect::<Vec<_>>();
     let signature = if kind == "extern type" && !type_parameters.is_empty() {
         format!(
             "{kind}<{}> {}",
@@ -229,7 +235,13 @@ fn function(
     arguments: Vec<(DeclaredName, Name)>,
     result: Option<Name>,
 ) -> Entry {
-    let type_parameters = generics.into_iter().map(|p| p.text).collect::<Vec<_>>();
+    let type_parameters = generics
+        .into_iter()
+        .map(|p| {
+            p.constant
+                .map_or(p.text.clone(), |kind| format!("{}: {kind}", p.text))
+        })
+        .collect::<Vec<_>>();
     let parameters = arguments
         .into_iter()
         .map(Parameter::new)
@@ -254,12 +266,12 @@ fn function(
     let mut entry = entry(origin, name, kind, signature, None);
     entry.type_parameters = type_parameters;
     entry.parameters = parameters;
-    entry.return_type = Some(result);
+    entry.return_type = Some(type_text(&result));
     entry
 }
 
 fn type_text(ty: &str) -> String {
-    ty.replace(',', ", ")
+    crate::frontend::ast::display_type(ty)
 }
 
 fn generic_suffix(parameters: &[String]) -> String {

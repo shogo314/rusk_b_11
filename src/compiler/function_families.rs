@@ -47,7 +47,11 @@ impl Compiler {
             .map(|(_, args)| args.into_iter().map(String::from).collect::<Vec<_>>());
         if let Some(arguments) = &explicit {
             for argument in arguments {
+                if generics::constant_kind(argument).is_some() {
+                    continue;
+                }
                 self.check_type(&Name {
+                    constant: None,
                     text: argument.clone(),
                     span: name.span.clone(),
                 })?;
@@ -74,9 +78,9 @@ impl Compiler {
             .filter(|(_, f)| {
                 scopes.contains(&f.scope)
                     && f.name.text == base
-                    && explicit
-                        .as_ref()
-                        .is_none_or(|arguments| arguments.len() == f.parameters.len())
+                    && explicit.as_ref().is_none_or(|_| {
+                        generics::explicit_bindings(&name.text, &f.parameters).is_some()
+                    })
             })
             .map(|(id, _)| id)
             .collect::<BTreeSet<_>>();
@@ -100,6 +104,7 @@ impl Compiler {
             ty.clone(),
             records::Record {
                 name: Name {
+                    constant: None,
                     text: ty.clone(),
                     span: name.span.clone(),
                 },
@@ -111,6 +116,7 @@ impl Compiler {
         self.functions.push(Function {
             scope: scopes::ScopeId::ROOT,
             name: Name {
+                constant: None,
                 text: format!("$family{anchor}"),
                 span: name.span.clone(),
             },
@@ -209,7 +215,7 @@ impl Compiler {
                     result: value.clone(),
                 }),
                 Instruction::Return {
-                    value: (result != "Unit").then_some(value),
+                    value: (access_types::underlying(&result) != "Unit").then_some(value),
                     span: Some(span.clone()),
                 },
             ],
@@ -218,6 +224,7 @@ impl Compiler {
         self.functions.push(Function {
             scope: scopes::ScopeId::ROOT,
             name: Name {
+                constant: None,
                 text: format!("$invoke{index}"),
                 span: span.clone(),
             },

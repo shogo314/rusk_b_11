@@ -1,11 +1,18 @@
 // operation is associative, returns an independent result; identity is neutral.
+/// 比較・合成関数を受け取る汎用セグメント木です。
 struct SegTree<T, F> {
+    /// 元の配列の要素数です。
     length: Int;
+    /// 内部の葉の数です。
     size: Int;
+    /// 内部の要素配列。直接変更しないでください。
     values: Vec<T>;
+    /// 集計演算の単位元です。
     identity: T;
+    /// 結合的な集計演算です。
     operation: F;
 }
+/// 単位元と結合的な演算を指定してセグメント木を構築します。
 fn SegTree<T, F>(values: Vec<T>, identity: T, operation: F) -> SegTree<T, F> {
     let size := 1;
     while size < values.len() {
@@ -28,6 +35,7 @@ fn SegTree<T, F>(values: Vec<T>, identity: T, operation: F) -> SegTree<T, F> {
         operation: operation
     };
 }
+/// 指定位置の値をコピーして置き換えます。
 fn set<T, F>(seg: SegTree<T, F>, position: Int, value: T) {
     assert(0 <= position && position < seg.length);
     let index := position + seg.size;
@@ -37,10 +45,12 @@ fn set<T, F>(seg: SegTree<T, F>, position: Int, value: T) {
         seg.values[index] = seg.operation(seg.values[2 * index], seg.values[2 * index + 1]);
     }
 }
+/// 指定位置の値のコピーを返します。
 fn get<T, F>(seg: SegTree<T, F>, position: Int) -> T {
     assert(0 <= position && position < seg.length);
     return copy(seg.values[seg.size + position]);
 }
+/// 半開区間[left,right)の集計を独立した値として返します。
 fn prod<T, F>(seg: SegTree<T, F>, left: Int, right: Int) -> T {
     assert(0 <= left && left <= right && right <= seg.length);
     let l := left + seg.size;
@@ -61,6 +71,7 @@ fn prod<T, F>(seg: SegTree<T, F>, left: Int, right: Int) -> T {
     }
     return seg.operation(a, b);
 }
+/// 述語を満たす最大の右端を返します。述語は単位元でtrueとなり、区間拡張に対して単調である必要があります。
 fn max_right<T, F, P>(seg: SegTree<T, F>, left: Int, predicate: P) -> Int {
     assert(0 <= left && left <= seg.length);
     assert(predicate(copy(seg.identity)));
@@ -93,6 +104,7 @@ fn max_right<T, F, P>(seg: SegTree<T, F>, left: Int, predicate: P) -> Int {
     }
     return seg.length;
 }
+/// 述語を満たす最小の左端を返します。述語は単位元でtrueとなり、区間拡張に対して単調である必要があります。
 fn min_left<T, F, P>(seg: SegTree<T, F>, right: Int, predicate: P) -> Int {
     assert(0 <= right && right <= seg.length);
     assert(predicate(copy(seg.identity)));

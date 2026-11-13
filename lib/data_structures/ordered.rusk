@@ -1,0 +1,442 @@
+//! 全順序を持つキーの整列集合・重複集合・辞書です。
+/// 型の全順序比較をネイティブの木へ接続する内部操作です。
+fn __ordered_less__<K>(a: K, b: K) -> Bool {
+    return __total_less__(a, b);
+}
+
+/// キー順に並ぶ集合です。キーの順序は格納中に変更しないでください。
+extern type<K> OrderedSet {
+    cpp_name: "RuskOrderedSet<{K},@{value_call __ordered_less__<K>(K,K)->Bool}>",
+    representation: "set<K>",
+}
+
+/// 空の整列コンテナを作ります。
+extern fn OrderedSet<K>() -> OrderedSet<K> {
+    code: "Obj<@{OrderedSet<K>}> @{fn}([[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<@{OrderedSet<K>}>(@{OrderedSet<K>}{});}",
+    effects: "read_fresh",
+}
+
+/// 要素数を返します。重複集合では重複も数えます。
+extern fn len<K>(a: OrderedSet<K>) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{OrderedSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<std::int64_t>(checked_int(a->entries.size(),loc));}",
+    effects: "checked_read_fresh",
+}
+
+/// 空ならtrueです。
+extern fn is_empty<K>(a: OrderedSet<K>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{OrderedSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<bool>(a->entries.empty());}",
+    effects: "read_fresh",
+}
+
+/// 同じ順序上のキーが存在するか調べます。
+extern fn contains<K>(a: OrderedSet<K>, key: K) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{OrderedSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};return make_obj<bool>(a->entries.find(key)!=a->entries.end());}",
+    effects: "checked_read_fresh",
+}
+
+/// 順序上同じキーの個数を返します。
+extern fn count<K>(a: OrderedSet<K>, key: K) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{OrderedSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};return make_obj<std::int64_t>(checked_int(a->entries.count(key),loc));}",
+    effects: "checked_read_fresh",
+}
+
+/// 全要素を削除します。比較・解放処理から同じ木への再入は失敗します。
+extern fn clear<K>(a: OrderedSet<K>) -> Unit {
+    code: "void @{fn}(Obj<@{OrderedSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);if(!a->entries.empty()){a->entries.clear();++a->version;}}",
+}
+
+/// キーをコピーして追加します。集合は新規追加ならtrueを返します。
+extern fn insert<K>(a: OrderedSet<K>, key: K) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{OrderedSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};if(a->entries.find(key)!=a->entries.end())return make_obj<bool>(false);auto value=@{boxed_call __copy__(K)->K}(key,loc);auto result=a->entries.insert(value);if(result.second)++a->version;return make_obj<bool>(result.second);}",
+    effects: "checked_mutate_fresh",
+}
+
+/// 該当するキーを1個削除し、削除できたか返します。
+extern fn erase<K>(a: OrderedSet<K>, key: K) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{OrderedSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto p=a->entries.find(key);if(p==a->entries.end())return make_obj<bool>(false);a->entries.erase(p);++a->version;return make_obj<bool>(true);}",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn lower_bound<K>(a: OrderedSet<K>, key: K) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{OrderedSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.lower_bound(key);if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=*p;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn upper_bound<K>(a: OrderedSet<K>, key: K) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{OrderedSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.upper_bound(key);if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=*p;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn first<K>(a: OrderedSet<K>) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{OrderedSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.begin();if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=*p;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn last<K>(a: OrderedSet<K>) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{OrderedSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.end();if(p!=a->entries.begin())--p;if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=*p;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// キーと値をそれぞれ__copy__でコピーします。
+extern fn __copy__<K>(a: OrderedSet<K>) -> OrderedSet<K> {
+    code: "Obj<@{OrderedSet<K>}> @{fn}(Obj<@{OrderedSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto version=a->version;auto size=a->entries.size();auto guard=[&](){if(a->version!=version||a->entries.size()!=size)fail(loc,\"container changed during copy\");};auto r=make_obj<@{OrderedSet<K>}>(@{OrderedSet<K>}{});auto p=a->entries.begin();while(true){guard();if(p==a->entries.end())break;{auto original=*p;auto key=@{boxed_call __copy__(K)->K}(original,loc);guard();r->entries.insert(key);}guard();++p;}return r;}",
+    effects: "checked_read_fresh",
+}
+
+/// 外側を保ってコピー代入します。解放中の再変更も検出します。
+extern fn __assign__<K>(a: OrderedSet<K>, b: OrderedSet<K>) -> Unit {
+    code: "void @{fn}(Obj<@{OrderedSet<K>}> a,Obj<@{OrderedSet<K>}> b,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto r=@{boxed_call __copy__(OrderedSet<K>)->OrderedSet<K>}(b,loc);if(r.use_count()>1)r=make_obj<@{OrderedSet<K>}>(*r);a->entries.swap(r->entries);++a->version;auto version=a->version;r->entries.clear();r.reset();if(a->version!=version)fail(loc,\"container changed during assignment\");}",
+}
+
+/// 昇順に走査し、構造変更と再入を検出する状態です。
+extern type<K> OrderedSetIter {
+    cpp_name: "RuskHashIterator<{OrderedSet<K>}>",
+    representation: "iterator<K>",
+    retains: "owner:OrderedSet<K>",
+}
+
+/// 昇順の走査状態を作ります。
+extern fn __iter__<K>(a: OrderedSet<K>) -> OrderedSetIter<K> {
+    code: "Obj<@{OrderedSetIter<K>}> @{fn}(Obj<@{OrderedSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<@{OrderedSetIter<K>}>(@{OrderedSetIter<K>}(a));}",
+    effects: "read_fresh",
+    aliases: "return.owner=0",
+}
+
+/// 現在の走査状態を共有します。
+extern fn __iter__<K>(it: OrderedSetIter<K>) -> OrderedSetIter<K> {
+    code: "Obj<@{OrderedSetIter<K>}> @{fn}(Obj<@{OrderedSetIter<K>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return it;}",
+    effects: "read_fresh",
+    aliases: "return=0",
+}
+
+/// 次の要素があるか確認します。走査中の構造変更は失敗します。
+extern fn __iter_has_next__<K>(it: OrderedSetIter<K>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{OrderedSetIter<K>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);if(it->finished)return make_obj<bool>(false);rusk_guard_iter(it,loc);if(it->position==it->end){it->finished=true;return make_obj<bool>(false);}return make_obj<bool>(true);}",
+}
+
+/// キーをコピーして次の要素を返します。辞書の値は共有します。
+extern fn __iter_next__<K>(it: OrderedSetIter<K>) -> K {
+    code: "Obj<@{K}> @{fn}(Obj<@{OrderedSetIter<K>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);if(it->finished)fail(loc,\"iterator exhausted\");rusk_guard_iter(it,loc);if(it->position==it->end){it->finished=true;fail(loc,\"iterator exhausted\");}RuskHashAdvanceGuard advancing(it->advancing,loc);auto original=*it->position;auto key=@{boxed_call __copy__(K)->K}(original,loc);rusk_guard_iter(it,loc);++it->position;return key;}",
+}
+
+/// 位置を独立にコピーし、走査元を共有します。
+extern fn __copy__<K>(it: OrderedSetIter<K>) -> OrderedSetIter<K> {
+    code: "Obj<@{OrderedSetIter<K>}> @{fn}(Obj<@{OrderedSetIter<K>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);rusk_guard_iter(it,loc);if(it->advancing)fail(loc,\"iterator reentered during key copy\");auto r=make_obj<@{OrderedSetIter<K>}>(@{OrderedSetIter<K>}(it->owner));r->finished=it->finished;if(!it->finished)r->position=it->position;return r;}",
+    effects: "checked_read_fresh",
+    aliases: "return.owner=0.owner",
+}
+
+/// 昇順のキーのコピーを配列で返します。
+fn keys<K>(a: OrderedSet<K>) -> Vec<K> {
+    let result: Vec<K> := [];
+    for key in a {
+        result.push_back(key);
+    }
+    return result;
+}
+
+/// キー順に並ぶ重複を許す集合です。キーの順序は格納中に変更しないでください。
+extern type<K> MultiSet {
+    cpp_name: "RuskMultiSet<{K},@{value_call __ordered_less__<K>(K,K)->Bool}>",
+    representation: "set<K>",
+}
+
+/// 空の整列コンテナを作ります。
+extern fn MultiSet<K>() -> MultiSet<K> {
+    code: "Obj<@{MultiSet<K>}> @{fn}([[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<@{MultiSet<K>}>(@{MultiSet<K>}{});}",
+    effects: "read_fresh",
+}
+
+/// 要素数を返します。重複集合では重複も数えます。
+extern fn len<K>(a: MultiSet<K>) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{MultiSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<std::int64_t>(checked_int(a->entries.size(),loc));}",
+    effects: "checked_read_fresh",
+}
+
+/// 空ならtrueです。
+extern fn is_empty<K>(a: MultiSet<K>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{MultiSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<bool>(a->entries.empty());}",
+    effects: "read_fresh",
+}
+
+/// 同じ順序上のキーが存在するか調べます。
+extern fn contains<K>(a: MultiSet<K>, key: K) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{MultiSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};return make_obj<bool>(a->entries.find(key)!=a->entries.end());}",
+    effects: "checked_read_fresh",
+}
+
+/// 順序上同じキーの個数を返します。
+extern fn count<K>(a: MultiSet<K>, key: K) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{MultiSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};return make_obj<std::int64_t>(checked_int(a->entries.count(key),loc));}",
+    effects: "checked_read_fresh",
+}
+
+/// 全要素を削除します。比較・解放処理から同じ木への再入は失敗します。
+extern fn clear<K>(a: MultiSet<K>) -> Unit {
+    code: "void @{fn}(Obj<@{MultiSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);if(!a->entries.empty()){a->entries.clear();++a->version;}}",
+}
+
+/// キーをコピーして追加します。集合は新規追加ならtrueを返します。
+extern fn insert<K>(a: MultiSet<K>, key: K) -> Unit {
+    code: "void @{fn}(Obj<@{MultiSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto value=@{boxed_call __copy__(K)->K}(key,loc);a->entries.insert(value);++a->version;}",
+    effects: "checked_resize_first",
+}
+
+/// 該当するキーを1個削除し、削除できたか返します。
+extern fn erase<K>(a: MultiSet<K>, key: K) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{MultiSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto p=a->entries.find(key);if(p==a->entries.end())return make_obj<bool>(false);a->entries.erase(p);++a->version;return make_obj<bool>(true);}",
+}
+
+/// 該当キーを1個だけ削除します。
+extern fn erase_one<K>(a: MultiSet<K>, key: K) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{MultiSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto p=a->entries.find(key);if(p==a->entries.end())return make_obj<bool>(false);a->entries.erase(p);++a->version;return make_obj<bool>(true);}",
+}
+
+/// 該当キーをすべて削除し、個数を返します。
+extern fn erase_all<K>(a: MultiSet<K>, key: K) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{MultiSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto n=a->entries.erase(key);if(n)++a->version;return make_obj<std::int64_t>(checked_int(n,loc));}",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn lower_bound<K>(a: MultiSet<K>, key: K) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{MultiSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.lower_bound(key);if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=*p;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn upper_bound<K>(a: MultiSet<K>, key: K) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{MultiSet<K>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.upper_bound(key);if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=*p;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn first<K>(a: MultiSet<K>) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{MultiSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.begin();if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=*p;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn last<K>(a: MultiSet<K>) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{MultiSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.end();if(p!=a->entries.begin())--p;if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=*p;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// キーと値をそれぞれ__copy__でコピーします。
+extern fn __copy__<K>(a: MultiSet<K>) -> MultiSet<K> {
+    code: "Obj<@{MultiSet<K>}> @{fn}(Obj<@{MultiSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto version=a->version;auto size=a->entries.size();auto guard=[&](){if(a->version!=version||a->entries.size()!=size)fail(loc,\"container changed during copy\");};auto r=make_obj<@{MultiSet<K>}>(@{MultiSet<K>}{});auto p=a->entries.begin();while(true){guard();if(p==a->entries.end())break;{auto original=*p;auto key=@{boxed_call __copy__(K)->K}(original,loc);guard();r->entries.insert(key);}guard();++p;}return r;}",
+    effects: "checked_read_fresh",
+}
+
+/// 外側を保ってコピー代入します。解放中の再変更も検出します。
+extern fn __assign__<K>(a: MultiSet<K>, b: MultiSet<K>) -> Unit {
+    code: "void @{fn}(Obj<@{MultiSet<K>}> a,Obj<@{MultiSet<K>}> b,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto r=@{boxed_call __copy__(MultiSet<K>)->MultiSet<K>}(b,loc);if(r.use_count()>1)r=make_obj<@{MultiSet<K>}>(*r);a->entries.swap(r->entries);++a->version;auto version=a->version;r->entries.clear();r.reset();if(a->version!=version)fail(loc,\"container changed during assignment\");}",
+}
+
+/// 昇順に走査し、構造変更と再入を検出する状態です。
+extern type<K> MultiSetIter {
+    cpp_name: "RuskHashIterator<{MultiSet<K>}>",
+    representation: "iterator<K>",
+    retains: "owner:MultiSet<K>",
+}
+
+/// 昇順の走査状態を作ります。
+extern fn __iter__<K>(a: MultiSet<K>) -> MultiSetIter<K> {
+    code: "Obj<@{MultiSetIter<K>}> @{fn}(Obj<@{MultiSet<K>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<@{MultiSetIter<K>}>(@{MultiSetIter<K>}(a));}",
+    effects: "read_fresh",
+    aliases: "return.owner=0",
+}
+
+/// 現在の走査状態を共有します。
+extern fn __iter__<K>(it: MultiSetIter<K>) -> MultiSetIter<K> {
+    code: "Obj<@{MultiSetIter<K>}> @{fn}(Obj<@{MultiSetIter<K>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return it;}",
+    effects: "read_fresh",
+    aliases: "return=0",
+}
+
+/// 次の要素があるか確認します。走査中の構造変更は失敗します。
+extern fn __iter_has_next__<K>(it: MultiSetIter<K>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{MultiSetIter<K>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);if(it->finished)return make_obj<bool>(false);rusk_guard_iter(it,loc);if(it->position==it->end){it->finished=true;return make_obj<bool>(false);}return make_obj<bool>(true);}",
+}
+
+/// キーをコピーして次の要素を返します。辞書の値は共有します。
+extern fn __iter_next__<K>(it: MultiSetIter<K>) -> K {
+    code: "Obj<@{K}> @{fn}(Obj<@{MultiSetIter<K>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);if(it->finished)fail(loc,\"iterator exhausted\");rusk_guard_iter(it,loc);if(it->position==it->end){it->finished=true;fail(loc,\"iterator exhausted\");}RuskHashAdvanceGuard advancing(it->advancing,loc);auto original=*it->position;auto key=@{boxed_call __copy__(K)->K}(original,loc);rusk_guard_iter(it,loc);++it->position;return key;}",
+}
+
+/// 位置を独立にコピーし、走査元を共有します。
+extern fn __copy__<K>(it: MultiSetIter<K>) -> MultiSetIter<K> {
+    code: "Obj<@{MultiSetIter<K>}> @{fn}(Obj<@{MultiSetIter<K>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);rusk_guard_iter(it,loc);if(it->advancing)fail(loc,\"iterator reentered during key copy\");auto r=make_obj<@{MultiSetIter<K>}>(@{MultiSetIter<K>}(it->owner));r->finished=it->finished;if(!it->finished)r->position=it->position;return r;}",
+    effects: "checked_read_fresh",
+    aliases: "return.owner=0.owner",
+}
+
+/// 昇順のキーのコピーを配列で返します。
+fn keys<K>(a: MultiSet<K>) -> Vec<K> {
+    let result: Vec<K> := [];
+    for key in a {
+        result.push_back(key);
+    }
+    return result;
+}
+
+/// キー順に並ぶ辞書です。キーの順序は格納中に変更しないでください。
+extern type<K, V> OrderedDict {
+    cpp_name: "RuskOrderedDict<{K},{V},@{value_call __ordered_less__<K>(K,K)->Bool}>",
+    representation: "dict<K,V>",
+}
+
+/// 空の整列コンテナを作ります。
+extern fn OrderedDict<K, V>() -> OrderedDict<K, V> {
+    code: "Obj<@{OrderedDict<K,V>}> @{fn}([[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<@{OrderedDict<K,V>}>(@{OrderedDict<K,V>}{});}",
+    effects: "read_fresh",
+}
+
+/// 要素数を返します。重複集合では重複も数えます。
+extern fn len<K, V>(a: OrderedDict<K, V>) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{OrderedDict<K,V>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<std::int64_t>(checked_int(a->entries.size(),loc));}",
+    effects: "checked_read_fresh",
+}
+
+/// 空ならtrueです。
+extern fn is_empty<K, V>(a: OrderedDict<K, V>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{OrderedDict<K,V>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<bool>(a->entries.empty());}",
+    effects: "read_fresh",
+}
+
+/// 同じ順序上のキーが存在するか調べます。
+extern fn contains<K, V>(a: OrderedDict<K, V>, key: K) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{OrderedDict<K,V>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};return make_obj<bool>(a->entries.find(key)!=a->entries.end());}",
+    effects: "checked_read_fresh",
+}
+
+/// 順序上同じキーの個数を返します。
+extern fn count<K, V>(a: OrderedDict<K, V>, key: K) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{OrderedDict<K,V>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};return make_obj<std::int64_t>(checked_int(a->entries.count(key),loc));}",
+    effects: "checked_read_fresh",
+}
+
+/// 全要素を削除します。比較・解放処理から同じ木への再入は失敗します。
+extern fn clear<K, V>(a: OrderedDict<K, V>) -> Unit {
+    code: "void @{fn}(Obj<@{OrderedDict<K,V>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);if(!a->entries.empty()){a->entries.clear();++a->version;}}",
+}
+
+/// 新しいキーはコピーし、値は共有して登録します。
+extern fn set<K, V>(a: OrderedDict<K, V>, key: K, value: V) -> Unit {
+    code: "void @{fn}(Obj<@{OrderedDict<K,V>}> a,Obj<@{K}> key,Obj<@{V}> value,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto p=a->entries.find(key);if(p!=a->entries.end()){auto old=std::move(p->second);p->second=value;old.reset();}else{auto copied=@{boxed_call __copy__(K)->K}(key,loc);auto result=a->entries.emplace(copied,value);if(result.second)++a->version;else{auto old=std::move(result.first->second);result.first->second=value;old.reset();}}}",
+}
+
+/// 添字の共有先を指定値へ置き換えます。
+extern fn __setitem__<K, V>(a: OrderedDict<K, V>, key: K, value: V) -> V {
+    return_abi: "object",
+    code: "Obj<@{V}> @{fn}(Obj<@{OrderedDict<K,V>}> a,Obj<@{K}> key,Obj<@{V}> value,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto p=a->entries.find(key);if(p!=a->entries.end()){auto old=std::move(p->second);p->second=value;old.reset();}else{auto copied=@{boxed_call __copy__(K)->K}(key,loc);auto result=a->entries.emplace(copied,value);if(result.second)++a->version;else{auto old=std::move(result.first->second);result.first->second=value;old.reset();}}return value;}",
+}
+
+/// 値を共有して取得し、不在なら既定値を登録します。
+extern fn __getitem__<K, V>(a: OrderedDict<K, V>, key: K) -> V {
+    return_abi: "object",
+    code: "Obj<@{V}> @{fn}(Obj<@{OrderedDict<K,V>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto p=a->entries.find(key);if(p!=a->entries.end())return p->second;auto copied=@{boxed_call __copy__(K)->K}(key,loc);auto value=@{boxed_call hash_default_value()->V}(loc);auto result=a->entries.emplace(copied,value);if(result.second)++a->version;return result.first->second;}",
+}
+
+/// キーに対応する共有値をSomeに包み、不在ならNoneです。
+extern fn get<K, V>(a: OrderedDict<K, V>, key: K) -> Option<V> {
+    code: "Obj<@{Option<V>}> @{fn}(Obj<@{OrderedDict<K,V>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto p=a->entries.find(key);if(p==a->entries.end())return rusk_enum_make<@{Option<V>},1>();return rusk_enum_make<@{Option<V>},0>(p->second);}",
+}
+
+/// 該当キーを削除できたか返します。
+extern fn erase<K, V>(a: OrderedDict<K, V>, key: K) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{OrderedDict<K,V>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto n=a->entries.erase(key);if(n)++a->version;return make_obj<bool>(n!=0);}",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn lower_bound<K, V>(a: OrderedDict<K, V>, key: K) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{OrderedDict<K,V>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.lower_bound(key);if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=p->first;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn upper_bound<K, V>(a: OrderedDict<K, V>, key: K) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{OrderedDict<K,V>}> a,Obj<@{K}> key,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.upper_bound(key);if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=p->first;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn first<K, V>(a: OrderedDict<K, V>) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{OrderedDict<K,V>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.begin();if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=p->first;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// 指定境界のキーのコピーをSomeで返します。不在ならNoneです。
+extern fn last<K, V>(a: OrderedDict<K, V>) -> Option<K> {
+    code: "Obj<@{Option<K>}> @{fn}(Obj<@{OrderedDict<K,V>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto p=a->entries.end();if(p!=a->entries.begin())--p;if(p==a->entries.end())return rusk_enum_make<@{Option<K>},1>();auto original=p->first;auto value=@{boxed_call __copy__(K)->K}(original,loc);return rusk_enum_make<@{Option<K>},0>(value);}",
+    effects: "checked_read_fresh",
+}
+
+/// キーと値をそれぞれ__copy__でコピーします。
+extern fn __copy__<K, V>(a: OrderedDict<K, V>) -> OrderedDict<K, V> {
+    code: "Obj<@{OrderedDict<K,V>}> @{fn}(Obj<@{OrderedDict<K,V>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);[[maybe_unused]]auto less=@{value_call __ordered_less__<K>(K,K)->Bool};auto version=a->version;auto size=a->entries.size();auto guard=[&](){if(a->version!=version||a->entries.size()!=size)fail(loc,\"container changed during copy\");};auto r=make_obj<@{OrderedDict<K,V>}>(@{OrderedDict<K,V>}{});auto p=a->entries.begin();while(true){guard();if(p==a->entries.end())break;{auto original=p->first;auto key=@{boxed_call __copy__(K)->K}(original,loc);guard();auto original_value=p->second;auto value=@{boxed_call __copy__(V)->V}(original_value,loc);guard();r->entries.emplace(key,value);}guard();++p;}return r;}",
+    effects: "checked_read_fresh",
+}
+
+/// 外側を保ってコピー代入します。解放中の再変更も検出します。
+extern fn __assign__<K, V>(a: OrderedDict<K, V>, b: OrderedDict<K, V>) -> Unit {
+    code: "void @{fn}(Obj<@{OrderedDict<K,V>}> a,Obj<@{OrderedDict<K,V>}> b,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);auto r=@{boxed_call __copy__(OrderedDict<K,V>)->OrderedDict<K,V>}(b,loc);if(r.use_count()>1)r=make_obj<@{OrderedDict<K,V>}>(*r);a->entries.swap(r->entries);++a->version;auto version=a->version;r->entries.clear();r.reset();if(a->version!=version)fail(loc,\"container changed during assignment\");}",
+}
+
+/// 昇順に走査し、構造変更と再入を検出する状態です。
+extern type<K, V> OrderedDictIter {
+    cpp_name: "RuskHashIterator<{OrderedDict<K,V>}>",
+    representation: "iterator<Tuple<K,V>>",
+    retains: "owner:OrderedDict<K,V>",
+}
+
+/// 昇順の走査状態を作ります。
+extern fn __iter__<K, V>(a: OrderedDict<K, V>) -> OrderedDictIter<K, V> {
+    code: "Obj<@{OrderedDictIter<K,V>}> @{fn}(Obj<@{OrderedDict<K,V>}> a,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return make_obj<@{OrderedDictIter<K,V>}>(@{OrderedDictIter<K,V>}(a));}",
+    effects: "read_fresh",
+    aliases: "return.owner=0",
+}
+
+/// 現在の走査状態を共有します。
+extern fn __iter__<K, V>(it: OrderedDictIter<K, V>) -> OrderedDictIter<K, V> {
+    code: "Obj<@{OrderedDictIter<K,V>}> @{fn}(Obj<@{OrderedDictIter<K,V>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);return it;}",
+    effects: "read_fresh",
+    aliases: "return=0",
+}
+
+/// 次の要素があるか確認します。走査中の構造変更は失敗します。
+extern fn __iter_has_next__<K, V>(it: OrderedDictIter<K, V>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{OrderedDictIter<K,V>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);if(it->finished)return make_obj<bool>(false);rusk_guard_iter(it,loc);if(it->position==it->end){it->finished=true;return make_obj<bool>(false);}return make_obj<bool>(true);}",
+}
+
+/// キーをコピーして次の要素を返します。辞書の値は共有します。
+extern fn __iter_next__<K, V>(it: OrderedDictIter<K, V>) -> Tuple<K, V> {
+    code: "Obj<@{Tuple<K,V>}> @{fn}(Obj<@{OrderedDictIter<K,V>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);if(it->finished)fail(loc,\"iterator exhausted\");rusk_guard_iter(it,loc);if(it->position==it->end){it->finished=true;fail(loc,\"iterator exhausted\");}RuskHashAdvanceGuard advancing(it->advancing,loc);auto original=it->position->first;auto key=@{boxed_call __copy__(K)->K}(original,loc);rusk_guard_iter(it,loc);auto value=it->position->second;++it->position;return make_obj<@{Tuple<K,V>}>(@{Tuple<K,V>}{key,value});}",
+}
+
+/// 位置を独立にコピーし、走査元を共有します。
+extern fn __copy__<K, V>(it: OrderedDictIter<K, V>) -> OrderedDictIter<K, V> {
+    code: "Obj<@{OrderedDictIter<K,V>}> @{fn}(Obj<@{OrderedDictIter<K,V>}> it,[[maybe_unused]] Loc loc){RuskHashLocation location_tracker(loc);rusk_guard_iter(it,loc);if(it->advancing)fail(loc,\"iterator reentered during key copy\");auto r=make_obj<@{OrderedDictIter<K,V>}>(@{OrderedDictIter<K,V>}(it->owner));r->finished=it->finished;if(!it->finished)r->position=it->position;return r;}",
+    effects: "checked_read_fresh",
+    aliases: "return.owner=0.owner",
+}
+
+/// 昇順のキーのコピーを配列で返します。
+fn keys<K, V>(a: OrderedDict<K, V>) -> Vec<K> {
+    let result: Vec<K> := [];
+    for (key, value) in a {
+        result.push_back(key);
+    }
+    return result;
+}
+
+/// 昇順のキーに対応する値を共有した配列を返します。
+fn values<K, V>(a: OrderedDict<K, V>) -> Vec<V> {
+    let result: Vec<V> := [];
+    for (key, value) in a {
+        result.push_back(value);
+    }
+    return result;
+}

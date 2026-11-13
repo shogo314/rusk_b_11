@@ -3,17 +3,17 @@
 /// 2つの整数のうち小さい値のコピーを返します。
 fn min(a: Int, b: Int) -> Int {
     return if b < a {
-        copy(b)
+        __copy__(b)
     } else {
-        copy(a)
+        __copy__(a)
     };
 }
 /// 2つの整数のうち大きい値のコピーを返します。
 fn max(a: Int, b: Int) -> Int {
     return if a < b {
-        copy(b)
+        __copy__(b)
     } else {
-        copy(a)
+        __copy__(a)
     };
 }
 /// 絶対値を返します。最小の `Int` の絶対値は表現できないため実行時エラーです。
@@ -21,6 +21,6 @@ fn abs(x: Int) -> Int {
     return if x < 0 {
         -x
     } else {
-        copy(x)
+        __copy__(x)
     };
 }

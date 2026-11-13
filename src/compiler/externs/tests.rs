@@ -32,12 +32,12 @@ fn symbolic_iterator_references_require_an_actual_type_declaration() {
 const TYPES: &str = r#"
 extern type Int {cpp_name:"std::int64_t",representation:"i64",}
 extern type Unit {cpp_name:"Unit",representation:"unit",}
-extern fn copy(x:Int)->Int {cpp_name:"field_copy",code:"Obj<std::int64_t> field_copy(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x);}",}
+extern fn __copy__(x:Int)->Int {cpp_name:"field_copy",code:"Obj<std::int64_t> field_copy(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x);}",}
 "#;
 const DERIVE: &str = r#"
 extern fn unrelated_template_name<Element>(value:Element)->Element {
     derive:"record_copy",
-    code:"/* source_derivation */ Obj<@{Element}> @{fn}(const Obj<@{Element}>& value,Loc loc){return make_obj<@{Element}>(@{Element}{@{fields Element as Member,Position}@{boxed_call copy(Member)->Member}(value->field_@{index Position},loc),@{end}});}",
+    code:"/* source_derivation */ Obj<@{Element}> @{fn}(const Obj<@{Element}>& value,Loc loc){return make_obj<@{Element}>(@{Element}{@{fields Element as Member,Position}@{boxed_call __copy__(Member)->Member}(value->field_@{index Position},loc),@{end}});}",
 }
 "#;
 
@@ -91,7 +91,7 @@ fn record_copy_derivations_validate_trust_shape_duplicates_and_unused_references
             "duplicate native derivation",
         ),
         (
-            DERIVE.replace("copy(Member)->Member", "copy(Missing)->Member"),
+            DERIVE.replace("__copy__(Member)->Member", "__copy__(Missing)->Member"),
             true,
             "unknown type",
         ),

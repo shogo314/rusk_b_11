@@ -17,6 +17,7 @@ impl Compiler {
             return Ok(index);
         }
         self.check_type(&Name {
+            constant: None,
             text: ty.into(),
             span: span.clone(),
         })?;

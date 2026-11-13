@@ -1,7 +1,7 @@
 //! 基本型のコピー・代入・出力の宣言です。
 
 /// 同じ整数を持つ独立した値を作ります。
-extern fn copy(x: Int) -> Int {
+extern fn __copy__(x: Int) -> Int {
     lower: "*$0",
     effects: "read_fresh",
     cpp_name: "copy_Int",
@@ -24,7 +24,7 @@ extern fn __write__(x: Int) {
 }
 
 /// 同じ真偽値を持つ独立した値を作ります。
-extern fn copy(x: Bool) -> Bool {
+extern fn __copy__(x: Bool) -> Bool {
     lower: "*$0",
     effects: "read_fresh",
     cpp_name: "copy_Bool",
@@ -47,7 +47,7 @@ extern fn __write__(x: Bool) {
 }
 
 /// 同じ文字を持つ独立した値を作ります。
-extern fn copy(x: Char) -> Char {
+extern fn __copy__(x: Char) -> Char {
     lower: "*$0",
     effects: "read_fresh",
     cpp_name: "copy_Char",
@@ -70,7 +70,7 @@ extern fn __write__(x: Char) {
 }
 
 /// 文字列の内容を独立した文字列にコピーします。
-extern fn copy(x: Str) -> Str {
+extern fn __copy__(x: Str) -> Str {
     lower_owned: "make_obj<std::string>(*$0)",
     effects: "read_fresh",
     cpp_name: "copy_Str",
@@ -91,7 +91,7 @@ extern fn __write__(x: Str) {
 }
 
 /// `Unit` 値を返します。
-extern fn copy(x: Unit) -> Unit {
+extern fn __copy__(x: Unit) -> Unit {
     lower_owned: "make_obj<Unit>(*$0)",
     return_abi: "object",
     effects: "read_fresh",
@@ -103,4 +103,9 @@ extern fn __assign__(x: Unit, y: Unit) {
     effects: "write_first",
     cpp_name: "assign_Unit",
     code: "inline void assign_Unit(Obj<Unit> x, Obj<Unit> y, Loc) { *x = *y; }",
+}
+
+/// 型のコピー操作を呼びます。共有を残すかは、その型の `__copy__` の実装に従います。
+fn copy<T>(value: T) -> T {
+    return __copy__(value);
 }

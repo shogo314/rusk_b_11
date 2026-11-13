@@ -123,6 +123,22 @@ pub(crate) struct Summary {
     pub retained: AccessPaths,
 }
 impl Summary {
+    pub(crate) fn restrict_result(&mut self, info: AccessInfo) {
+        self.returned.join(&AccessPaths::root(info));
+    }
+    pub(crate) fn restrict_result_path(&mut self, path: Vec<Projection>, info: AccessInfo) {
+        self.returned
+            .join(&AccessPaths([(path, [info].into())].into(), false));
+    }
+    pub(crate) fn retain_readonly(&mut self, info: AccessInfo) {
+        self.retained.join(&AccessPaths::root(info));
+    }
+    pub(crate) fn readonly_result(info: AccessInfo) -> Self {
+        Self {
+            returned: AccessPaths::root(info),
+            retained: AccessPaths::default(),
+        }
+    }
     pub fn validate(
         &self,
         result: &str,
@@ -330,23 +346,71 @@ fn operation(
                 if check && (effect.write != Effect::No || effect.structural != Effect::No) {
                     // Parameter effects do not identify which contained member
                     // is written. A contained-only restriction is conservative.
+                    let mut checked = if effect.root_only {
+                        actual.project_root()
+                    } else if let Some(paths) = &effect.write_paths {
+                        let mut access = actual.clone();
+                        access.0.retain(|restriction, _| {
+                            paths.iter().any(|write| {
+                                write.path.starts_with(restriction)
+                                    || (write.recursive && restriction.starts_with(&write.path))
+                            })
+                        });
+                        access
+                    } else {
+                        actual.clone()
+                    };
+                    if callee.body.is_none()
+                        && !effect.root_only
+                        && program.readonly_members.contains(&call.args[index].ty)
+                    {
+                        checked.join(&AccessPaths::root(AccessInfo {
+                            name: format!("readonly members of {}", call.args[index].ty),
+                            declaration: call.span.clone(),
+                            annotation: crate::frontend::ast::AccessAnnotation {
+                                mode: AccessMode::Readonly,
+                                span: call.span.clone(),
+                            },
+                        }));
+                    }
                     let unknown = effect.write == Effect::Unknown
                         || effect.structural == Effect::Unknown
-                        || !actual.0.contains_key(&vec![]);
-                    actual
+                        || !checked.0.contains_key(&vec![]);
+                    checked
                         .check(
                             &call.span,
                             &format!("argument {} of '{}'", index + 1, callee.name),
                             unknown,
                         )
                         .map_err(|error| {
-                            diagnostic::Failure::new(error, &call.args[index], actual, unknown)
+                            diagnostic::Failure::new(error, &call.args[index], &checked, unknown)
                         })?;
                 }
-                if effect.retained != Effect::No {
+                if effect.retained != Effect::No && !effect.readonly_sealed {
                     state.objects.expose(&references[index]);
-                    state.heap.join(&actual.collapse());
-                    result.retained.join(&actual.collapse());
+                    let mut unsealed = actual.clone();
+                    unsealed.0.retain(|path, _| {
+                        !effect
+                            .readonly_sealed_paths
+                            .iter()
+                            .any(|seal| path.starts_with(seal))
+                    });
+                    let mut retained = unsealed.collapse();
+                    if callee.body.is_none()
+                        && program.readonly_members.contains(&call.args[index].ty)
+                        && effect.readonly_sealed_paths.is_empty()
+                    {
+                        retained.join(&AccessPaths::root(AccessInfo {
+                            name: format!("readonly members of {}", call.args[index].ty),
+                            declaration: call.span.clone(),
+                            annotation: crate::frontend::ast::AccessAnnotation {
+                                mode: AccessMode::Readonly,
+                                span: call.span.clone(),
+                            },
+                        }));
+                    }
+                    state.heap.join(&retained);
+                    result.retained.join(&retained);
                 }
             }
             let restriction = &summaries[call.function];
@@ -363,6 +427,18 @@ fn operation(
                 for (index, (actual, reference)) in args.iter().zip(&references).enumerate() {
                     if callee.effects.returned.may_share(index) {
                         value.access.join(&actual.collapse());
+                        if callee.body.is_none()
+                            && program.readonly_members.contains(&call.args[index].ty)
+                        {
+                            value.access.join(&AccessPaths::root(AccessInfo {
+                                name: format!("readonly members of {}", call.args[index].ty),
+                                declaration: call.span.clone(),
+                                annotation: crate::frontend::ast::AccessAnnotation {
+                                    mode: AccessMode::Readonly,
+                                    span: call.span.clone(),
+                                },
+                            }));
+                        }
                         state.objects.expose(reference);
                     }
                 }
@@ -495,18 +571,26 @@ fn analyze_body(
 /// Solve the propagation of explicit restrictions through calls before checking
 /// mutations. The effect summaries independently describe unannotated callees.
 pub(crate) fn analyze(program: &lir::Program) -> Result<Vec<Summary>, String> {
-    let mut summaries = vec![Summary::default(); program.functions.len()];
-    let has_readonly = program
+    let mut summaries = program
         .functions
         .iter()
-        .filter_map(|function| function.body.as_ref())
-        .chain(std::iter::once(&program.main))
-        .flat_map(|body| &body.blocks)
-        .flat_map(|block| &block.instructions)
-        .any(|op| {
-            matches!(op, Operation::AnnotateAccess { info, .. }
+        .map(|f| f.access.clone())
+        .collect::<Vec<_>>();
+    let has_readonly = !program.readonly_members.is_empty()
+        || summaries
+            .iter()
+            .any(|s| !s.returned.0.is_empty() || !s.retained.0.is_empty())
+        || program
+            .functions
+            .iter()
+            .filter_map(|function| function.body.as_ref())
+            .chain(std::iter::once(&program.main))
+            .flat_map(|body| &body.blocks)
+            .flat_map(|block| &block.instructions)
+            .any(|op| {
+                matches!(op, Operation::AnnotateAccess { info, .. }
                 if info.annotation.mode == AccessMode::Readonly)
-        });
+            });
     if !has_readonly {
         return Ok(summaries);
     }

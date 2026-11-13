@@ -7,7 +7,7 @@ pub(super) fn extern_parameter_contract(
     use crate::frontend::ast::{AccessMode, EscapeMode};
 
     let mut guarantees = Vec::with_capacity(arguments.len());
-    for (argument, _) in arguments {
+    for (argument, ty) in arguments {
         if (argument.access.is_some() || argument.escape.is_some())
             && ["effects", "aliases", "derive"]
                 .iter()
@@ -21,7 +21,8 @@ pub(super) fn extern_parameter_contract(
             argument
                 .access
                 .as_ref()
-                .is_some_and(|a| a.mode == AccessMode::Readonly),
+                .is_some_and(|a| a.mode == AccessMode::Readonly)
+                || access_types::inner(&ty.text).is_some(),
             argument
                 .escape
                 .as_ref()
@@ -146,7 +147,7 @@ impl Compiler {
             None => false,
             Some("assign")
                 if scalar.is_some()
-                    && result == "Unit"
+                    && access_types::underlying(result) == "Unit"
                     && params.len() == 2
                     && params[0] == params[1]
                     && properties

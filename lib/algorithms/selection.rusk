@@ -1,0 +1,50 @@
+/// 指定位置を先頭にするように回転します。middleは0以上len以下です。
+extern fn rotate<T>(a: Vec<T>, middle: Int) -> Unit {
+    code: "void @{fn}(Obj<@{Vec<T>}> a,Obj<@{Int}> middle,[[maybe_unused]] Loc loc){if(*middle<0||static_cast<std::uint64_t>(*middle)>a->size())fail(loc,\"rotation index out of range\");std::rotate(a->begin(),a->begin()+*middle,a->end());++a->version;}",
+    effects: "checked_resize_first",
+}
+
+/// n番目を確定し、前後を分割します。n==lenも使えます。
+extern fn nth_element<T>(a: Vec<T>, n: Int) -> Unit {
+    code: "void @{fn}(Obj<@{Vec<T>}> a,Obj<@{Int}> n,[[maybe_unused]] Loc loc){if(*n<0||static_cast<std::uint64_t>(*n)>a->size())fail(loc,\"selection index out of range\");auto version=a->version;auto snapshot=*a;auto compare=[&](const auto& x,const auto& y){if(a->version!=version)fail(loc,\"container changed during callback\");auto result=@{value_call __total_less__<T>(T,T)->Bool}(x,y,loc);if(a->version!=version)fail(loc,\"container changed during callback\");return result;};std::nth_element(snapshot.begin(),snapshot.begin()+*n,snapshot.end(),compare);if(a->version!=version)fail(loc,\"container changed during callback\");a->swap(snapshot);++a->version;}",
+}
+
+/// 先頭n要素へ小さい順にn個を並べます。
+extern fn partial_sort<T>(a: Vec<T>, n: Int) -> Unit {
+    code: "void @{fn}(Obj<@{Vec<T>}> a,Obj<@{Int}> n,[[maybe_unused]] Loc loc){if(*n<0||static_cast<std::uint64_t>(*n)>a->size())fail(loc,\"selection index out of range\");auto version=a->version;auto snapshot=*a;auto compare=[&](const auto& x,const auto& y){if(a->version!=version)fail(loc,\"container changed during callback\");auto result=@{value_call __total_less__<T>(T,T)->Bool}(x,y,loc);if(a->version!=version)fail(loc,\"container changed during callback\");return result;};std::partial_sort(snapshot.begin(),snapshot.begin()+*n,snapshot.end(),compare);if(a->version!=version)fail(loc,\"container changed during callback\");a->swap(snapshot);++a->version;}",
+}
+
+/// 隣り合う等しい要素を1個にまとめて縮め、新しい長さを返します。
+extern fn unique<T>(a: Vec<T>) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{Vec<T>}> a,[[maybe_unused]] Loc loc){auto version=a->version;auto snapshot=*a;auto same=[&](const auto& x,const auto& y){if(a->version!=version)fail(loc,\"container changed during callback\");auto result=@{value_call __eq__(T,T)->Bool}(x,y,loc);if(a->version!=version)fail(loc,\"container changed during callback\");return result;};auto last=std::unique(snapshot.begin(),snapshot.end(),same);snapshot.erase(last,snapshot.end());if(a->version!=version)fail(loc,\"container changed during callback\");a->swap(snapshot);++a->version;return make_obj<std::int64_t>(checked_int(a->size(),loc));}",
+}
+
+/// 述語がtrueの要素を前へ安定に集め、境界位置を返します。
+extern fn partition<T, F>(a: Vec<T>, predicate: F) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{Vec<T>}> a,Obj<@{F}> predicate,[[maybe_unused]] Loc loc){auto version=a->version;auto snapshot=*a;auto keep=[&](const auto& x){if(a->version!=version)fail(loc,\"container changed during callback\");auto result=*@{invoke F(T)->Bool}(predicate,x,loc);if(a->version!=version)fail(loc,\"container changed during callback\");return result;};auto end=std::stable_partition(snapshot.begin(),snapshot.end(),keep);auto n=end-snapshot.begin();if(a->version!=version)fail(loc,\"container changed during callback\");a->swap(snapshot);++a->version;return make_obj<std::int64_t>(checked_int(n,loc));}",
+}
+
+/// 昇順の2配列にmerge_sortedを適用し、要素を共有する新しい配列を返します。
+extern fn merge_sorted<T>(left: Vec<T>, right: Vec<T>) -> Vec<T> {
+    code: "Obj<@{Vec<T>}> @{fn}(Obj<@{Vec<T>}> left,Obj<@{Vec<T>}> right,[[maybe_unused]] Loc loc){auto lv=left->version,rv=right->version;auto a=*left,b=*right;auto result=make_obj<@{Vec<T>}>(@{Vec<T>}{});auto compare=[&](const auto& x,const auto& y){if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");auto result=@{value_call __total_less__<T>(T,T)->Bool}(x,y,loc);if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");return result;};std::merge(a.begin(),a.end(),b.begin(),b.end(),std::back_inserter(*result),compare);if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");return result;}",
+}
+
+/// 昇順の2配列にset_unionを適用し、要素を共有する新しい配列を返します。
+extern fn set_union<T>(left: Vec<T>, right: Vec<T>) -> Vec<T> {
+    code: "Obj<@{Vec<T>}> @{fn}(Obj<@{Vec<T>}> left,Obj<@{Vec<T>}> right,[[maybe_unused]] Loc loc){auto lv=left->version,rv=right->version;auto a=*left,b=*right;auto result=make_obj<@{Vec<T>}>(@{Vec<T>}{});auto compare=[&](const auto& x,const auto& y){if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");auto result=@{value_call __total_less__<T>(T,T)->Bool}(x,y,loc);if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");return result;};std::set_union(a.begin(),a.end(),b.begin(),b.end(),std::back_inserter(*result),compare);if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");return result;}",
+}
+
+/// 昇順の2配列にset_intersectionを適用し、要素を共有する新しい配列を返します。
+extern fn set_intersection<T>(left: Vec<T>, right: Vec<T>) -> Vec<T> {
+    code: "Obj<@{Vec<T>}> @{fn}(Obj<@{Vec<T>}> left,Obj<@{Vec<T>}> right,[[maybe_unused]] Loc loc){auto lv=left->version,rv=right->version;auto a=*left,b=*right;auto result=make_obj<@{Vec<T>}>(@{Vec<T>}{});auto compare=[&](const auto& x,const auto& y){if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");auto result=@{value_call __total_less__<T>(T,T)->Bool}(x,y,loc);if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");return result;};std::set_intersection(a.begin(),a.end(),b.begin(),b.end(),std::back_inserter(*result),compare);if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");return result;}",
+}
+
+/// 昇順の2配列にset_differenceを適用し、要素を共有する新しい配列を返します。
+extern fn set_difference<T>(left: Vec<T>, right: Vec<T>) -> Vec<T> {
+    code: "Obj<@{Vec<T>}> @{fn}(Obj<@{Vec<T>}> left,Obj<@{Vec<T>}> right,[[maybe_unused]] Loc loc){auto lv=left->version,rv=right->version;auto a=*left,b=*right;auto result=make_obj<@{Vec<T>}>(@{Vec<T>}{});auto compare=[&](const auto& x,const auto& y){if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");auto result=@{value_call __total_less__<T>(T,T)->Bool}(x,y,loc);if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");return result;};std::set_difference(a.begin(),a.end(),b.begin(),b.end(),std::back_inserter(*result),compare);if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");return result;}",
+}
+
+/// 昇順の2配列にset_symmetric_differenceを適用し、要素を共有する新しい配列を返します。
+extern fn set_symmetric_difference<T>(left: Vec<T>, right: Vec<T>) -> Vec<T> {
+    code: "Obj<@{Vec<T>}> @{fn}(Obj<@{Vec<T>}> left,Obj<@{Vec<T>}> right,[[maybe_unused]] Loc loc){auto lv=left->version,rv=right->version;auto a=*left,b=*right;auto result=make_obj<@{Vec<T>}>(@{Vec<T>}{});auto compare=[&](const auto& x,const auto& y){if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");auto result=@{value_call __total_less__<T>(T,T)->Bool}(x,y,loc);if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");return result;};std::set_symmetric_difference(a.begin(),a.end(),b.begin(),b.end(),std::back_inserter(*result),compare);if(left->version!=lv||right->version!=rv)fail(loc,\"container changed during callback\");return result;}",
+}

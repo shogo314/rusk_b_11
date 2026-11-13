@@ -86,7 +86,7 @@ extern fn Str(x: Int128) -> Str {
 }
 
 /// 同じ128ビット整数を持つ独立した値を作ります。
-extern fn copy(x: Int128) -> Int128 {
+extern fn __copy__(x: Int128) -> Int128 {
     lower: "*$0",
     effects: "read_fresh",
     cpp_name: "rusk_native_i128_copy",
@@ -244,6 +244,6 @@ fn abs(x: Int128) -> Int128 {
     return if x < 0i128 {
         -x
     } else {
-        copy(x)
+        __copy__(x)
     };
 }

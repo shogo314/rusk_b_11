@@ -93,7 +93,7 @@ pub(crate) fn install_panic_hook() {
         // Reporting a panic must not cause another panic if stderr is closed.
         let mut stderr = std::io::stderr().lock();
         let _ = writeln!(stderr, "error: Rusk internal compiler error");
-        let _ = writeln!(stderr, "version: {}", env!("CARGO_PKG_VERSION"));
+        let _ = writeln!(stderr, "version: {}", crate::metadata::VERSION);
         let _ = writeln!(stderr, "stage: {stage}");
         let _ = writeln!(stderr, "reason: {reason}");
         if let Some(location) = info.location() {

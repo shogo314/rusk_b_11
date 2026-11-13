@@ -1,0 +1,23 @@
+//! 法を型の一部として保持し、操作の型引数から推論します。
+struct Residue<M: Int> {
+    value: Int;
+}
+fn residue<M: Int>(value: Int) -> Residue<M> {
+    return Residue::<M> {
+        value: value % M
+    };
+}
+fn __add__<M: Int>(a: Residue<M>, b: Residue<M>) -> Residue<M> {
+    return residue::<M>(a.value + b.value);
+}
+fn modulus<M: Int>(value: Residue<M>) -> Int {
+    return M;
+}
+struct Tag<B: Bool> {}
+fn enabled<B: Bool>(tag: Tag<B>) -> Bool {
+    return B;
+}
+let a := residue::<7>(10);
+let b := residue::<7>(5);
+let sum := a + b;
+wt a.value, b.value, sum.value, modulus(sum), enabled(Tag::<true>());

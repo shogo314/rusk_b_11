@@ -65,7 +65,6 @@ fn generic_specialization_failures_have_source_context() {
         "fn f<T>(a:T) {} f::<Int,Str>(1);",
         "fn zero<T>()->T { return T(); } zero();",
         "fn f<T>(a:Vec<T>) {} fn f<T>(a:T) {} f([1]);",
-        "struct Node<T> { children:Vec<Node<T>>; } let n:Node<Int>;",
         "struct Box<T> { value:T; } struct Box { value:Int; }",
     ] {
         let case = Case::new(source);

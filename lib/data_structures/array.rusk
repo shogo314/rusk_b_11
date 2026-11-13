@@ -1,0 +1,110 @@
+/// 長さNを型で区別する固定長配列です。
+extern type<T, N: Int> Array {
+    cpp_name: "RuskArray<{T},@{N}>",
+    representation: "vector<T>",
+}
+
+/// 配列の各要素をコピーして構築します。
+extern fn Array<T, N: Int>(a: Vec<T>) -> Array<T, N> {
+    code: "Obj<@{Array<T,N>}> @{fn}(Obj<@{Vec<T>}> a,[[maybe_unused]] Loc loc){if(@{N}<0||a->size()!=static_cast<std::uint64_t>(@{N}))fail(loc,\"array length mismatch\");auto result=make_obj<@{Array<T,N>}>(@{Array<T,N>}{});const auto version=a->version;const auto n=a->size();auto guard=[&](){if(a->version!=version||a->size()!=n)fail(loc,\"container changed during copy\");};for(std::size_t i=0;i<n;++i){guard();{auto original=(*a)[i];result->values.push_back(@{boxed_call __copy__(T)->T}(original,loc));}guard();}return result;}",
+    effects: "checked_read_fresh",
+}
+
+/// 各位置へ初期値を独立にコピーし、長さNの配列を作ります。
+extern fn Array<T, N: Int>(value: T) -> Array<T, N> {
+    code: "Obj<@{Array<T,N>}> @{fn}(Obj<@{T}> value,[[maybe_unused]] Loc loc){if(@{N}<0)fail(loc,\"negative array length\");auto result=make_obj<@{Array<T,N>}>(@{Array<T,N>}{});if(static_cast<std::uint64_t>(@{N})>result->values.max_size())fail(loc,\"array length out of range\");result->values.reserve(@{N});for(std::int64_t i=0;i<@{N};++i)result->values.push_back(@{boxed_call __copy__(T)->T}(value,loc));return result;}",
+    effects: "checked_read_fresh",
+}
+
+/// 各要素を__copy__でコピーし、独立した外側の配列を返します。
+extern fn __copy__<T, N: Int>(a: Array<T, N>) -> Array<T, N> {
+    code: "Obj<@{Array<T,N>}> @{fn}(Obj<@{Array<T,N>}> a,[[maybe_unused]] Loc loc){auto r=make_obj<@{Array<T,N>}>(@{Array<T,N>}{});const auto version=a->version;const auto n=a->size();for(std::size_t i=0;i<n;++i){if(a->version!=version||a->size()!=n)fail(loc,\"container changed during copy\");{auto original=a->values[i];r->values.push_back(@{boxed_call __copy__(T)->T}(original,loc));}if(a->version!=version||a->size()!=n)fail(loc,\"container changed during copy\");}return r;}",
+    effects: "checked_read_fresh",
+}
+
+/// 外側を保ってコピー代入します。解放中の再変更も検出します。
+extern fn __assign__<T, N: Int>(a: Array<T, N>, b: Array<T, N>) -> Unit {
+    code: "void @{fn}(Obj<@{Array<T,N>}> a,Obj<@{Array<T,N>}> b,[[maybe_unused]] Loc loc){auto r=@{boxed_call __copy__(Array<T,N>)->Array<T,N>}(b,loc);if(r.use_count()>1)r=make_obj<@{Array<T,N>}>(*r);a->values.swap(r->values);++a->version;auto version=a->version;r->values.clear();r.reset();if(a->version!=version)fail(loc,\"container changed during assignment\");}",
+}
+
+/// 要素数を返します。
+extern fn len<T, N: Int>(a: Array<T, N>) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{Array<T,N>}> a,[[maybe_unused]] Loc loc){return make_obj<std::int64_t>(checked_int(a->size(),loc));}",
+    effects: "checked_read_fresh",
+}
+
+/// 空ならtrueです。
+extern fn is_empty<T, N: Int>(a: Array<T, N>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{Array<T,N>}> a,[[maybe_unused]] Loc loc){return make_obj<bool>(a->values.empty());}",
+    effects: "read_fresh",
+}
+
+/// 要素を共有して返します。負の添字は末尾から数えます。
+extern fn get<T, N: Int>(a: Array<T, N>, i: Int) -> T {
+    return_abi: "object",
+    code: "Obj<@{T}> @{fn}(Obj<@{Array<T,N>}> a,Obj<@{Int}> i,[[maybe_unused]] Loc loc){return a->values[checked_index(a->size(),*i,loc)];}",
+    effects: "element",
+}
+
+/// 要素を共有して返します。負の添字は末尾から数えます。
+extern fn __getitem__<T, N: Int>(a: Array<T, N>, i: Int) -> T {
+    return_abi: "object",
+    code: "Obj<@{T}> @{fn}(Obj<@{Array<T,N>}> a,Obj<@{Int}> i,[[maybe_unused]] Loc loc){return a->values[checked_index(a->size(),*i,loc)];}",
+    effects: "element",
+}
+
+/// 指定位置の共有先を置き換えます。
+extern fn __setitem__<T, N: Int>(a: Array<T, N>, i: Int, value: T) -> T {
+    return_abi: "object",
+    code: "Obj<@{T}> @{fn}(Obj<@{Array<T,N>}> a,Obj<@{Int}> i,Obj<@{T}> value,[[maybe_unused]] Loc loc){auto index=checked_index(a->size(),*i,loc);auto displaced=std::move(a->values[index]);a->values[index]=value;displaced.reset();return value;}",
+    effects: "replace_element",
+}
+
+/// 指定位置の値をコピーして更新します。
+fn set<T, N: Int>(a: Array<T, N>, i: Int, value: T) {
+    a[i] = value;
+}
+
+/// 所有元を保持し、構造変更を検出する走査状態です。
+extern type<T, N: Int> ArrayIter<T, N> {
+    cpp_name: "RuskLinearIter<@{Array<T,N>}>",
+    representation: "iterator<T>",
+    retains: "owner:Array<T,N>",
+}
+
+/// 所有元を共有する新しい走査状態を作ります。
+extern fn __iter__<T, N: Int>(a: Array<T, N>) -> ArrayIter<T, N> {
+    code: "Obj<@{ArrayIter<T,N>}> @{fn}(Obj<@{Array<T,N>}> a,[[maybe_unused]] Loc loc){return make_obj<@{ArrayIter<T,N>}>(@{ArrayIter<T,N>}(a));}",
+    effects: "read_fresh",
+    aliases: "return.owner=0",
+}
+
+/// 現在の走査状態を共有します。
+extern fn __iter__<T, N: Int>(it: ArrayIter<T, N>) -> ArrayIter<T, N> {
+    code: "Obj<@{ArrayIter<T,N>}> @{fn}(Obj<@{ArrayIter<T,N>}> it,[[maybe_unused]] Loc loc){return it;}",
+    effects: "read_fresh",
+    aliases: "return=0",
+}
+
+/// 次の要素があるか調べます。走査中の構造変更は失敗します。
+extern fn __iter_has_next__<T, N: Int>(it: ArrayIter<T, N>) -> Bool {
+    code: "Obj<@{Bool}> @{fn}(Obj<@{ArrayIter<T,N>}> it,[[maybe_unused]] Loc loc){if(it->finished)return make_obj<bool>(false);rusk_guard_iter(it,loc);if(it->index>=it->owner->size()){it->finished=true;return make_obj<bool>(false);}return make_obj<bool>(true);}",
+}
+
+/// 次の要素を返して位置を進めます。終了後の取得は失敗します。
+extern fn __iter_next__<T, N: Int>(it: ArrayIter<T, N>) -> T {
+    return_abi: "object",
+    code: "Obj<@{T}> @{fn}(Obj<@{ArrayIter<T,N>}> it,[[maybe_unused]] Loc loc){if(it->finished)fail(loc,\"iterator exhausted\");rusk_guard_iter(it,loc);if(it->index>=it->owner->size()){it->finished=true;fail(loc,\"iterator exhausted\");}return it->owner->at(it->index++);}",
+}
+
+/// 位置をコピーし、所有元を共有する走査状態を返します。
+extern fn __copy__<T, N: Int>(it: ArrayIter<T, N>) -> ArrayIter<T, N> {
+    code: "Obj<@{ArrayIter<T,N>}> @{fn}(Obj<@{ArrayIter<T,N>}> it,[[maybe_unused]] Loc loc){rusk_guard_iter(it,loc);return make_obj<@{ArrayIter<T,N>}>(*it);}",
+    effects: "checked_read_fresh",
+    aliases: "return.owner=0.owner",
+}
+
+/// 外側の同一性を保ち、走査位置と所有元を更新します。
+extern fn __assign__<T, N: Int>(a: ArrayIter<T, N>, b: ArrayIter<T, N>) -> Unit {
+    code: "void @{fn}(Obj<@{ArrayIter<T,N>}> a,Obj<@{ArrayIter<T,N>}> b,[[maybe_unused]] Loc loc){rusk_guard_iter(b,loc);auto value=*b;*a=std::move(value);}",
+}

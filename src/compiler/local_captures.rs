@@ -389,10 +389,12 @@ impl Compiler {
                     self.environments.locals[&key.function].captures[key.index].clone();
                 fields.push((
                     Name {
+                        constant: None,
                         text: format!("$capture{}_{}", key.function, key.index),
                         span: name.span.clone(),
                     },
                     Name {
+                        constant: None,
                         text: variable.ty.clone(),
                         span: name.span,
                     },
@@ -424,11 +426,6 @@ impl Compiler {
                     }
                 }
                 changed = true;
-            }
-        }
-        if changed {
-            for closure in self.environments.closures.values() {
-                self.check_record_cycle(&self.records[&closure.ty].name, &mut vec![])?;
             }
         }
         // Validate readiness before entering HIR validation or the C++ backend.

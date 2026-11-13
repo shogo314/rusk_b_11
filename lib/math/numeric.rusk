@@ -1,0 +1,77 @@
+/// 非負の最大公約数を返します。結果がIntの範囲外なら失敗します。
+extern fn gcd(a: Int, b: Int) -> Int {
+    code: "Obj<std::int64_t> rusk_std_numeric_1(Obj<std::int64_t> a,Obj<std::int64_t> b,[[maybe_unused]] Loc loc){auto magnitude=[](std::int64_t n){return n<0?std::uint64_t(0)-static_cast<std::uint64_t>(n):static_cast<std::uint64_t>(n);};auto x=magnitude(*a),y=magnitude(*b);while(y){auto r=x%y;x=y;y=r;}return make_obj<std::int64_t>(checked_int(static_cast<__int128>(x),loc));}",
+    cpp_name: "rusk_std_numeric_1",
+    effects: "checked_read_fresh",
+}
+
+/// 非負の最小公倍数を返し、オーバーフローを検査します。0を含む場合は0です。
+extern fn lcm(a: Int, b: Int) -> Int {
+    code: "Obj<std::int64_t> rusk_std_numeric_2(Obj<std::int64_t> a,Obj<std::int64_t> b,[[maybe_unused]] Loc loc){auto magnitude=[](std::int64_t n){return n<0?std::uint64_t(0)-static_cast<std::uint64_t>(n):static_cast<std::uint64_t>(n);};auto x=magnitude(*a),y=magnitude(*b);if(!x||!y)return make_obj<std::int64_t>(0);auto u=x,v=y;while(v){auto r=u%v;u=v;v=r;}return make_obj<std::int64_t>(checked_int(static_cast<__int128>(x/u)*y,loc));}",
+    cpp_name: "rusk_std_numeric_2",
+    effects: "checked_read_fresh",
+}
+
+/// 任意精度整数の非負の最大公約数を返します。
+fn gcd(a: BigInt, b: BigInt) -> BigInt {
+    let x := abs(a);
+    let y := abs(b);
+    while y != BigInt() {
+        let remainder := x % y;
+        x := y;
+        y := remainder;
+    }
+    return x;
+}
+/// 任意精度整数の非負の最小公倍数を返します。
+fn lcm(a: BigInt, b: BigInt) -> BigInt {
+    if a == BigInt() || b == BigInt() {
+        return BigInt();
+    }
+    return abs((a / gcd(a, b)) * b);
+}
+/// 包含的な累積和のコピーを返します。空入力には空配列です。
+fn partial_sum<T>(values: Vec<T>) -> Vec<T> {
+    let result: Vec<T> := [];
+    if values.len() == 0 {
+        return result;
+    }
+    let version := __sequence_version__(values);
+    let accumulator = values[0];
+    result.push_back(copy(accumulator));
+    for i in 1 .. values.len() {
+        assert(version == __sequence_version__(values));
+        accumulator := accumulator + values[i];
+        result.push_back(copy(accumulator));
+    }
+    assert(version == __sequence_version__(values));
+    return result;
+}
+/// 先頭要素のコピーと、隣り合う要素の差を返します。
+fn adjacent_difference<T>(values: Vec<T>) -> Vec<T> {
+    let result: Vec<T> := [];
+    if values.len() == 0 {
+        return result;
+    }
+    let version := __sequence_version__(values);
+    result.push_back(copy(values[0]));
+    for i in 1 .. values.len() {
+        assert(version == __sequence_version__(values));
+        result.push_back(values[i] - values[i - 1]);
+    }
+    assert(version == __sequence_version__(values));
+    return result;
+}
+/// 同じ長さの2配列の内積を初期値に加算します。初期値はコピーします。
+fn inner_product<T>(left: Vec<T>, right: Vec<T>, initial: T) -> T {
+    assert(left.len() == right.len());
+    let lv := __sequence_version__(left);
+    let rv := __sequence_version__(right);
+    let result = initial;
+    for i in 0 .. left.len() {
+        assert(lv == __sequence_version__(left) && rv == __sequence_version__(right));
+        result := result + left[i] * right[i];
+    }
+    assert(lv == __sequence_version__(left) && rv == __sequence_version__(right));
+    return result;
+}

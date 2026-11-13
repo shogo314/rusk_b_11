@@ -11,7 +11,7 @@ extern fn leaf() -> Leaf {
     cpp_name: "hash_copy_leaf",
     code: "Obj<std::int64_t> hash_copy_leaf(Loc){return Obj<std::int64_t>(new std::int64_t(4),[](auto* p){delete p;if(deferred_hash_cleanup&&mutate_hash_owner)mutate_hash_owner();});}",
 }
-extern fn copy(x: Leaf) -> Leaf {
+extern fn __copy__(x: Leaf) -> Leaf {
     cpp_name: "hash_copy_leaf_value",
     code: "Obj<std::int64_t> hash_copy_leaf_value(Obj<std::int64_t> x,Loc){if(deferred_hash_cleanup)replace_hash_value();else mutate_hash_owner(); return make_obj<std::int64_t>(*x);}",
 }

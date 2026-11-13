@@ -1,5 +1,14 @@
 mod support;
 use support::Case;
+
+fn generated_code(case: &Case) -> String {
+    let cpp = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+    // Inspect emitted operations, not the original-source appendix.
+    cpp.split_once("\n// Rusk source: ")
+        .map_or(cpp.as_str(), |(code, _)| code)
+        .to_string()
+}
+
 fn equivalent(source: &str, expected: &str) {
     let case = Case::new(source);
     let fast = case.run("");
@@ -43,7 +52,7 @@ let x:=1;write(x);wt plain(x),annotated(x),escape_result(x),unknown(x);
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let fast = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+    let fast = generated_code(&case);
     for name in ["plain", "annotated"] {
         assert!(signature(&fast, name).contains("const Obj<std::int64_t>& rusk_p0"));
     }
@@ -52,7 +61,7 @@ let x:=1;write(x);wt plain(x),annotated(x),escape_result(x),unknown(x);
     }
     let output = case.compile_with_options(&["--no-opt"]);
     assert!(output.status.success());
-    let plain = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+    let plain = generated_code(&case);
     for name in ["plain", "annotated"] {
         assert!(!signature(&plain, name).contains("const Obj"));
     }
@@ -226,10 +235,10 @@ let a:=[3];let old:=a[0];let alias:=old;a[0]:=7;wt alias,a;
     let case =
         Case::new("let a:=[1,2,3];let total:=0;for x in a{let alias:=x;total+=alias;}wt total;");
     assert!(case.compile().status.success());
-    let fast = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+    let fast = generated_code(&case);
     assert!(fast.contains("const Obj<std::int64_t>& rusk_v"), "{fast}");
     assert!(case.compile_with_options(&["--no-opt"]).status.success());
-    let plain = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+    let plain = generated_code(&case);
     assert!(!plain.contains("const Obj<std::int64_t>& rusk_v"));
 }
 
@@ -256,7 +265,7 @@ let numbers:=[1,2];for x in numbers{x+=10;}wt numbers;
     let case =
         Case::new("fn sum()->Int{let total:=0;for i in 0..10{total+=i;}return total;}wt sum();");
     assert!(case.compile().status.success());
-    let cpp = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+    let cpp = generated_code(&case);
     assert!(
         cpp.contains("RuskInlineScalar<std::int64_t>& rusk_v"),
         "{cpp}"
@@ -299,7 +308,7 @@ for x in numbers{other=8;wt x;}wt numbers;
     );
     let case = Case::new("let a:=[1,2,3];let total:=0;for x in a{total+=x;}wt total;");
     assert!(case.compile().status.success());
-    let fast = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+    let fast = generated_code(&case);
     let next = fast
         .split_once("int main() {")
         .unwrap()
@@ -322,7 +331,7 @@ for x in numbers{other=8;wt x;}wt numbers;
         .trim();
     assert!(!fast.contains(&format!("{owner}.reset()")), "{fast}");
     assert!(case.compile_with_options(&["--no-opt"]).status.success());
-    let plain = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+    let plain = generated_code(&case);
     assert!(!plain.contains("() -> const auto&"));
 }
 
@@ -355,7 +364,7 @@ let c:=[3];let i:=0;for x in c{i:=1;wt x;}wt i;
     ] {
         let case = Case::new(source);
         assert!(case.compile().status.success());
-        let cpp = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+        let cpp = generated_code(&case);
         assert!(!cpp.contains("() -> const auto&"), "{cpp}");
         let access = cpp
             .split_once("int main() {")
@@ -394,7 +403,7 @@ let local:=3;let alias:=local;wt next(local);alias=8;wt local;
             "fn next({parameter})->Int{{return x+1;}}let a:=[1,2];for x in a{{wt next(x);}}"
         ));
         assert!(case.compile().status.success());
-        let fast = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+        let fast = generated_code(&case);
         assert!(signature(&fast, "next").contains("const Obj<std::int64_t>& rusk_p0"));
         let main = fast.split_once("int main() {").unwrap().1;
         let getter = main
@@ -424,7 +433,7 @@ let local:=3;let alias:=local;wt next(local);alias=8;wt local;
         );
         assert!(!main.contains("() -> const auto&"));
         assert!(case.compile_with_options(&["--no-opt"]).status.success());
-        let plain = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+        let plain = generated_code(&case);
         assert!(!plain.contains("const Obj<std::int64_t>& rusk_v"));
     }
 }
@@ -461,7 +470,7 @@ let a:=[1];for x in a{wt use_value(x);}"#,
             "{}",
             String::from_utf8_lossy(&compiled.stderr)
         );
-        let cpp = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+        let cpp = generated_code(&case);
         let main = cpp.split_once("int main() {").unwrap().1;
         assert!(!main.contains("const Obj<std::int64_t>& rusk_v"), "{main}");
     }
@@ -492,7 +501,7 @@ let text:="ab";wt code(text[0]);text.push_back('!');wt text;
             "fn across({parameter})->Int{{let alias:=x;let total:=0;for i in 0..3{{let local:=alias;if i>0{{total+=local;}}else{{total+=x;}}}}return total;}}wt across(2);"
         ));
         assert!(case.compile().status.success());
-        let fast = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+        let fast = generated_code(&case);
         let body = fast
             .split("// Rusk function ")
             .find(|body| {
@@ -521,7 +530,7 @@ let text:="ab";wt code(text[0]);text.push_back('!');wt text;
         }
         assert!(!body.contains("rusk_p0.reset()"));
         assert!(case.compile_with_options(&["--no-opt"]).status.success());
-        let plain = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+        let plain = generated_code(&case);
         assert!(!plain.contains("const Obj<std::int64_t>& rusk_v"));
     }
 }
@@ -549,7 +558,7 @@ fn identity(x:Int)->Int{return x;}let held:=identity(value);value=8;wt held;
     ] {
         let case = Case::new(source);
         assert!(case.compile().status.success());
-        let cpp = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+        let cpp = generated_code(&case);
         let body = cpp
             .split("// Rusk function ")
             .find(|body| {
@@ -595,7 +604,7 @@ let text:="ab";take(text,true);text.push_back('!');take(text,false);text.push_ba
         "let a:=[1,2];let total:=0;for x in a{let alias:=x;if x>0{total+=alias;}else{total-=x;}}wt total;",
     );
     assert!(case.compile().status.success());
-    let cpp = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+    let cpp = generated_code(&case);
     let main = cpp.split_once("int main() {").unwrap().1;
     let getter = main
         .lines()
@@ -616,7 +625,7 @@ let text:="ab";take(text,true);text.push_back('!');take(text,false);text.push_ba
     );
     assert!(main.contains(&format!("{owner}.reset();")), "{main}");
     assert!(case.compile_with_options(&["--no-opt"]).status.success());
-    let plain = std::fs::read_to_string(case.0.join("main.cpp")).unwrap();
+    let plain = generated_code(&case);
     assert!(!plain.contains("const Obj<std::int64_t>& rusk_v"));
 }
 

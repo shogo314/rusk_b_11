@@ -34,7 +34,7 @@ rusk compile main.rusk -o main.cpp
 
 ## ヘルプ・引数・終了コード
 
-`rusk --help`はコマンドの一覧、`rusk compile --help`・`rusk dependencies --help`は各コマンドの引数とオプションを表示します。`rusk help compile`も使えます。`rusk --version`は処理系のパッケージバージョンを表示します。
+`rusk --help`はコマンドの一覧、`rusk compile --help`・`rusk dependencies --help`は各コマンドの引数とオプションを表示します。`rusk help compile`も使えます。`rusk --version`は処理系のパッケージバージョンを表示します。β11は`0.1.0-beta.11`で、正式版の`0.1.0`と区別します。
 
 `--emit=hir`・`--output=main.hir`のように値を`=`で指定できます。同じ出力先・出力段階を複数回指定した場合は最後の値を使い、`--no-opt`の重複指定も許可します。
 
@@ -55,6 +55,10 @@ rusk compile -o main.cpp -- -source.rusk
 ヘルプ・バージョンは標準出力、引数エラーと処理中の診断は標準エラーに表示します。引数なしの実行は、標準エラーにヘルプを表示して終了コード2を返します。引数エラー時はソースを読み込まず、生成ファイルを作りません。
 
 panicが発生した場合は`Rusk internal compiler error`に続けて、パッケージバージョン、処理段階、原因、Rust側の発生位置を表示します。`RUST_BACKTRACE=1 rusk compile main.rusk`でバックトレースも付けられます。通常のソースエラーやファイルI/Oの失敗は、内部エラー表示を使いません。内部エラーが出た場合は、診断と再現するソースを添えて報告してください。panic後は処理を継続しません。
+
+生成C++のヘッダーには処理系の版・公開元URL・取得できる場合のGitリビジョン・ビルド時の変更有無・最適化の指定を記録します。末尾には利用者のソースとinclude先、組み込み標準ライブラリのRuskコード全文をコメントで掲載します。`//|`形式は行末のバックスラッシュによるC++の行連結を防ぐ包装を付け、`// Rusk source JSON:`の各行にファイル名と正確な元テキストを記録します。現在時刻は追加しません。HIR・LIRなどの中間表現には全文コメントを追加しません。
+
+標準ライブラリの`compiler_version()`・`compiler_revision()`・`compiler_modified()`・`compiler_source_url()`から、実行ファイルを生成したコンパイラの情報を取得できます。リビジョンと変更有無は、Git情報を取得できない配布ビルドではNoneです。β版の出典記録と正式版0.1.0の公開前に確認する事項は[作業計画](../development/plan.md)を参照してください。
 
 ## ソースを整形する
 

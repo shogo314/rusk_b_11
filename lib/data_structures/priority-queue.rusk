@@ -1,9 +1,13 @@
 // compare(a,b) means a has higher priority. Values are copied on insertion.
+/// 比較関数で優先順位を定める二分ヒープです。
 struct PriorityQueue<T, F> {
+    /// 内部の要素配列。直接変更しないでください。
     values: Vec<T>;
+    /// 高い優先度かを判定する比較関数です。
     compare: F;
 }
-fn sift_down<T, F>(queue: PriorityQueue<T, F>, position: Int) {
+/// ヒープ内の指定位置から下向きに順序を復元する内部操作です。
+fn __priority_queue_sift_down__<T, F>(queue: PriorityQueue<T, F>, position: Int) {
     let index = position;
     while 2 * index + 1 < queue.values.len() {
         let child := 2 * index + 1;
@@ -22,6 +26,7 @@ fn sift_down<T, F>(queue: PriorityQueue<T, F>, position: Int) {
         index := child;
     }
 }
+/// compare(a,b)がaの高優先度を表すヒープを構築し、入力要素をコピーします。
 fn PriorityQueue<T, F>(values: Vec<T>, compare: F) -> PriorityQueue<T, F> {
     let queue := PriorityQueue::<T, F> {
         values: copy(values),
@@ -29,17 +34,20 @@ fn PriorityQueue<T, F>(values: Vec<T>, compare: F) -> PriorityQueue<T, F> {
     };
     let index := values.len() / 2 - 1;
     while index >= 0 {
-        queue.sift_down(index);
+        queue.__priority_queue_sift_down__(index);
         index -= 1;
     }
     return queue;
 }
+/// 格納された要素数を返します。
 fn len<T, F>(queue: PriorityQueue<T, F>) -> Int {
     return queue.values.len();
 }
+/// 要素がないか返します。
 fn is_empty<T, F>(queue: PriorityQueue<T, F>) -> Bool {
     return queue.values.len() == 0;
 }
+/// 値をコピーしてヒープへ追加します。
 fn push<T, F>(queue: PriorityQueue<T, F>, value: T) {
     queue.values.push_back(copy(value));
     let index := queue.values.len() - 1;
@@ -54,17 +62,19 @@ fn push<T, F>(queue: PriorityQueue<T, F>, value: T) {
         index := parent;
     }
 }
+/// 最高優先度の要素のコピーを返します。空の場合は失敗します。
 fn top<T, F>(queue: PriorityQueue<T, F>) -> T {
     assert(!queue.is_empty());
     return copy(queue.values[0]);
 }
+/// 最高優先度の要素を取り出します。空の場合は失敗します。
 fn pop<T, F>(queue: PriorityQueue<T, F>) -> T {
     assert(!queue.is_empty());
     let answer := queue.values[0];
     let last := queue.values.pop_back();
     if !queue.is_empty() {
         queue.values[0] := last;
-        queue.sift_down(0);
+        queue.__priority_queue_sift_down__(0);
     }
     return answer;
 }

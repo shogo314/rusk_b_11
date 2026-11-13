@@ -117,6 +117,7 @@ mod tests {
     use super::*;
     fn add(compiler: &mut Compiler, name: &str, dependencies: Option<&str>) -> Result<(), String> {
         let name = Name {
+            constant: None,
             text: name.into(),
             span: Span {
                 file: "symbols.rusk".into(),

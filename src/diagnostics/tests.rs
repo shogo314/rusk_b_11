@@ -46,6 +46,7 @@ fn panic_hook_child() {
         "hir" => {
             use crate::ir::hir::{Body, Instruction, Program, Rvalue, Value, ValueId};
             Program {
+                readonly_members: Default::default(),
                 types: Default::default(),
                 functions: vec![],
                 main: Body {
@@ -66,6 +67,7 @@ fn panic_hook_child() {
         "lir" => {
             use crate::ir::lir::{Function, Program};
             Program {
+                readonly_members: Default::default(),
                 types: Default::default(),
                 functions: vec![],
                 main: Function {

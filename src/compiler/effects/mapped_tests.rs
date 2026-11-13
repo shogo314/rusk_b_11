@@ -26,7 +26,7 @@ fn section<'a>(hir: &'a str, name: &str) -> &'a str {
 }
 
 #[test]
-fn mapped_dependencies_compose_aliases_across_layers_and_leave_cycles_and_unknowns_opaque() {
+fn mapped_dependencies_compose_aliases_and_preserve_unknowns_and_cycle_divergence() {
     let standard = r#"
 extern fn outer<T>(x:T)->T{effects:"read_fresh",code:"@{boxed_call inner(T)->T via (0) into return}",}
 extern fn inner<T>(x:T)->T{effects:"read_fresh",code:"@{boxed_call child(T)->T via (0) into return}",}
@@ -39,7 +39,7 @@ extern fn touch(x:Int){cpp_name:"touch",code:"unused",effects:"write_first",}
             "extern fn child(x:Int)->Int{cpp_name:\"unknown\",code:\"unused\",}",
             "Opaque",
         ),
-        ("fn child(x:Int)->Int{return outer(x);}", "Opaque"),
+        ("fn child(x:Int)->Int{return outer(x);}", "NativeContract"),
         ("fn child(x:Int)->Int{touch(x);return x;}", "NativeContract"),
     ] {
         let hir = compile(standard, &format!("{child}outer(1);legacy(2);")).unwrap();
@@ -49,8 +49,15 @@ extern fn touch(x:Int){cpp_name:"touch",code:"unused",effects:"write_first",}
                 "{hir}"
             );
         }
-        assert!(section(&hir, "legacy").contains("source: Opaque"), "{hir}");
-        if child.contains("touch(x)") {
+        let cycle = child.contains("return outer(x)");
+        let legacy_source = if cycle { "NativeContract" } else { "Opaque" };
+        assert!(
+            section(&hir, "legacy").contains(&format!("source: {legacy_source}")),
+            "{hir}"
+        );
+        if cycle {
+            assert!(section(&hir, "outer").contains("may_diverge: May"), "{hir}");
+        } else if child.contains("touch(x)") {
             assert!(section(&hir, "outer").contains("write: May"), "{hir}");
             assert!(section(&hir, "outer").contains("unknown: true"), "{hir}");
         } else if expected == "NativeContract" {

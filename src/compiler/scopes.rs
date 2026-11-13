@@ -103,7 +103,11 @@ impl Compiler {
             .functions
             .iter()
             .enumerate()
-            .filter(|(id, f)| f.name.text == lookup_name && !self.generic_calls.contains_key(id))
+            .filter(|(id, f)| {
+                f.name.text == lookup_name
+                    && !self.generic_calls.contains_key(id)
+                    && self.aggregate_candidate(*id, arguments)
+            })
             .map(|(_, f)| f.scope)
             .chain(
                 self.generic_functions
@@ -120,7 +124,8 @@ impl Compiler {
         let origins = std::iter::once(origin)
             .chain(constructor_scope)
             .chain(arguments.iter().map(|ty| {
-                let base = tuples::type_parts(ty).map_or(ty.as_str(), |(base, _)| base);
+                let ty = access_types::underlying(ty);
+                let base = tuples::type_parts(ty).map_or(ty, |(base, _)| base);
                 self.type_declaration_scopes
                     .get(base)
                     .copied()
@@ -174,6 +179,7 @@ mod tests {
         compiler.functions.push(Function {
             scope,
             name: Name {
+                constant: None,
                 text: "choose".into(),
                 span: Span {
                     file: "scopes.rusk".into(),

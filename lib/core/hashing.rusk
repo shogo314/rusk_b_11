@@ -1,0 +1,41 @@
+//! 型の等値比較と整合するハッシュ操作です。ハッシュ値の版をまたぐ安定性は保証しません。
+
+extern fn __hash__(value: Int) -> Int {
+    effects: "read_fresh",
+    cpp_name: "rusk_hash_Int",
+    code: "Obj<std::int64_t> rusk_hash_Int(Obj<std::int64_t> value,Loc){return make_obj<std::int64_t>(static_cast<std::int64_t>(std::hash<std::int64_t>{}(*value)));}",
+}
+
+extern fn __hash__(value: Bool) -> Int {
+    effects: "read_fresh",
+    cpp_name: "rusk_hash_Bool",
+    code: "Obj<std::int64_t> rusk_hash_Bool(Obj<bool> value,Loc){return make_obj<std::int64_t>(static_cast<std::int64_t>(std::hash<bool>{}(*value)));}",
+}
+
+extern fn __hash__(value: Char) -> Int {
+    effects: "read_fresh",
+    cpp_name: "rusk_hash_Char",
+    code: "Obj<std::int64_t> rusk_hash_Char(Obj<char> value,Loc){return make_obj<std::int64_t>(static_cast<std::int64_t>(std::hash<char>{}(*value)));}",
+}
+
+extern fn __hash__(value: Str) -> Int {
+    effects: "read_fresh",
+    cpp_name: "rusk_hash_Str",
+    code: "Obj<std::int64_t> rusk_hash_Str(Obj<std::string> value,Loc){return make_obj<std::int64_t>(static_cast<std::int64_t>(std::hash<std::string>{}(*value)));}",
+}
+
+/// 型の `__hash__` を呼びます。等しい値は同じハッシュを持つ必要があります。
+fn hash<T>(value: T) -> Int {
+    return __hash__(value);
+}
+
+extern fn __hash__<T>(values: Vec<T>) -> Int {
+    effects: "checked_read_fresh",
+    code: "Obj<@{Int}> @{fn}(Obj<@{Vec<T>}> values,Loc loc){const auto version=values->version;const auto size=values->size();auto guard=[&](){if(values->version!=version||values->size()!=size)fail(loc,\"container changed during hash\");};std::size_t hash=0;for(std::size_t i=0;i<size;++i){guard();auto value=(*values)[i];auto part=@{value_call __hash__(T)->Int}(value,loc);guard();rusk_hash_combine(hash,static_cast<std::size_t>(part));}return make_obj<@{Int}>(static_cast<@{Int}>(hash));}",
+}
+
+// Option supplies a manual equality policy in the standard library.
+extern fn __hash__<T>(value: Option<T>) -> Int {
+    effects: "read_fresh",
+    code: "Obj<@{Int}> @{fn}(Obj<@{Option<T>}> value,Loc loc){auto snapshot=value->value;std::size_t hash=rusk_enum_index<@{Option<T>}>(snapshot);if(rusk_enum_index<@{Option<T>}>(snapshot)==0){auto field=rusk_enum_payload<@{Option<T>},0>(snapshot).field_0;auto part=@{value_call __hash__(T)->Int}(field,loc);rusk_hash_combine(hash,static_cast<std::size_t>(part));}return make_obj<@{Int}>(static_cast<@{Int}>(hash));}",
+}

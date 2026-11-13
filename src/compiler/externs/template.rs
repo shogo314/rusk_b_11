@@ -85,7 +85,7 @@ pub(super) fn valid_type(text: &str) -> bool {
         }
         match type_parts(text) {
             Some((base, args)) => identifier(base) && args.iter().all(|a| check(a, depth + 1)),
-            None => identifier(text),
+            None => identifier(text) || crate::compiler::generics::constant_kind(text).is_some(),
         }
     }
     check(text, 0)

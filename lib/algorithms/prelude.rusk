@@ -2,3 +2,5 @@ include "search.rusk";
 include "sequence.rusk";
 include "aggregate.rusk";
 include "sort.rusk";
+include "permutation.rusk";
+include "selection.rusk";

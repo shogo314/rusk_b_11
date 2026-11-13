@@ -7,6 +7,7 @@ mod diagnostics;
 mod format;
 mod frontend;
 mod ir;
+mod metadata;
 mod native;
 mod stdlib;
 
@@ -63,9 +64,15 @@ fn compile(args: CompileArgs) -> Result<(), String> {
         EmitStage::Cpp => backend::Emit::Cpp,
         EmitStage::Cst | EmitStage::Ast => unreachable!(),
     };
-    let source = source::load(&file)?.statements;
-    let cpp = compiler::Compiler::with_optimization(!no_opt)
+    let loaded = source::load(&file)?;
+    let mut provenance = stdlib::sources();
+    provenance.extend(loaded.sources);
+    let source = loaded.statements;
+    let mut cpp = compiler::Compiler::with_optimization(!no_opt)
         .compile(&[stdlib::load()?, compiler::Source::user(source)], emit)?;
+    if matches!(emit, backend::Emit::Cpp) {
+        metadata::append_sources(&mut cpp, &provenance);
+    }
     let _stage = enter(Stage::Output);
     std::fs::write(&output, cpp).map_err(|e| format!("{}: {e}", output.display()))?;
     Ok(())

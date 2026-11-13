@@ -1,0 +1,24 @@
+/// 各位置からの接尾辞と文字列全体の最長共通接頭辞長。空文字列には空配列を返します。
+fn z_algorithm(s: Str) -> Vec<Int> {
+    let n := s.len();
+    if n == 0 {
+        return [];
+    }
+    let z := [0; n];
+    z[0] = n;
+    let left := 0;
+    let right := 0;
+    for i in 1 .. n {
+        if i < right {
+            z[i] = min(right - i, z[i - left]);
+        }
+        while i + z[i] < n && s[z[i]] == s[i + z[i]] {
+            z[i] += 1;
+        }
+        if i + z[i] > right {
+            left := i;
+            right := i + z[i];
+        }
+    }
+    return z;
+}

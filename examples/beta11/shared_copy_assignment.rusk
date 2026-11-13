@@ -1,0 +1,32 @@
+//! 共有を返すコピーを使っても、代入は外側の同一性と元のコンテナを保ちます。
+fn __copy__(value: Vec<Int>) -> Vec<Int> {
+    return value;
+}
+fn __copy__(value: Dict<Int, Int>) -> Dict<Int, Int> {
+    return value;
+}
+fn __copy__(value: Set<Int>) -> Set<Int> {
+    return value;
+}
+let a := [1, 2];
+let b := [9];
+let alias := b;
+b = a;
+a.push_back(3);
+a[0] = 7;
+wt a, b, alias.len();
+let d := Dict::<Int, Int>();
+d[1] = 2;
+let e := Dict::<Int, Int>();
+let de := e;
+e = d;
+d[1] = 8;
+d[3] = 4;
+wt d.len(), e.len(), e[1], de.len();
+let s := Set::<Int>();
+s.insert(1);
+let t := Set::<Int>();
+let st := t;
+t = s;
+s.insert(2);
+wt s.len(), t.len(), st.contains(1);

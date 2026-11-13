@@ -19,32 +19,32 @@ impl Compiler {
             return Ok(());
         }
         let record = self.records[name].clone();
-        if record.fields.is_empty() && !name.starts_with("__RuskCallable") {
-            return Err(record
-                .name
-                .span
-                .error("a struct currently requires at least one field"));
-        }
         let mut names = BTreeSet::new();
         for (name, _) in &record.fields {
             if !names.insert(&name.text) {
                 return Err(name.span.error(format!("duplicate field '{}'", name.text)));
             }
         }
-        self.check_record_cycle(&record.name, &mut vec![])?;
-        for (_, ty) in &record.fields {
-            self.check_type(ty)?;
+        if self.record_preparation_depth >= 64 {
+            return Err(record
+                .name
+                .span
+                .error("recursive struct specialization limit exceeded"));
         }
+        self.record_preparation_depth += 1;
+        let fields = record
+            .fields
+            .iter()
+            .try_for_each(|(_, ty)| self.check_type(ty));
+        self.record_preparation_depth -= 1;
+        fields?;
         let native = self.types[&record.name.text].clone();
         let copy = format!("copy_{native}");
         let assign = format!("assign_{native}");
-        let copy_index = self.functions.len();
-        self.record_copy_functions
-            .insert(record.name.text.clone(), copy_index);
-        self.register_derived_copy(copy_index);
-        for (name, params, result, cpp, code, derivation) in [
+        let scope = self.aggregate_scope(&record.name.text);
+        for (operation, params, result, cpp, code, derivation) in [
             (
-                "copy",
+                "__copy__",
                 vec![record.name.text.clone()],
                 record.name.text.clone(),
                 copy.clone(),
@@ -62,18 +62,25 @@ impl Compiler {
                 Some("record_assign"),
             ),
         ] {
+            if self.has_manual_operation(operation, &record.name.text, params.len()) {
+                continue;
+            }
+            let index = self.functions.len();
+            self.aggregate_operations.insert(index);
+            if operation == "__copy__" {
+                self.record_copy_functions
+                    .insert(record.name.text.clone(), index);
+                self.register_derived_copy(index);
+            }
             if let Some(kind) = derivation {
-                self.native_derivation_tasks.insert(
-                    self.functions.len(),
-                    (kind.into(), record.name.text.clone()),
-                );
+                self.native_derivation_tasks
+                    .insert(index, (kind.into(), record.name.text.clone()));
             }
             self.functions.push(Function {
-                // Derived operations must not introduce a lexical overload
-                // family that hides unrelated scalar operations in this block.
-                scope: scopes::ScopeId::ROOT,
+                scope,
                 name: Name {
-                    text: name.into(),
+                    constant: None,
+                    text: operation.into(),
                     span: record.name.span.clone(),
                 },
                 params,
@@ -87,50 +94,8 @@ impl Compiler {
         }
         self.prepared_records.insert(name.into());
         self.prepare_tuple_functions(&record)?;
-        Ok(())
-    }
-
-    pub(super) fn check_record_cycle(
-        &self,
-        name: &Name,
-        path: &mut Vec<String>,
-    ) -> Result<(), String> {
-        let Some(record) = self.records.get(&name.text) else {
-            if let Some((_, args)) = super::tuples::type_parts(&name.text) {
-                for arg in args {
-                    self.check_record_cycle(
-                        &Name {
-                            text: arg.into(),
-                            span: name.span.clone(),
-                        },
-                        path,
-                    )?;
-                }
-            }
-            return Ok(());
-        };
-        if path.contains(&name.text) {
-            path.push(name.text.clone());
-            return Err(name.span.error(format!(
-                "recursive structs are not implemented yet: {}",
-                path.join(" -> ")
-            )));
-        }
-        path.push(name.text.clone());
-        for (_, ty) in &record.fields {
-            let mut inner = ty.text.as_str();
-            while let Some(element) = vector_element(inner) {
-                inner = element;
-            }
-            self.check_record_cycle(
-                &Name {
-                    text: inner.into(),
-                    span: ty.span.clone(),
-                },
-                path,
-            )?;
-        }
-        path.pop();
+        self.register_aggregate_comparisons(&record.name.text, false, &record.name.span)?;
+        self.register_aggregate_hash(&record.name.text, false, &record.name.span)?;
         Ok(())
     }
 
@@ -166,7 +131,9 @@ impl Compiler {
             .records
             .values()
             .filter(|r| {
-                self.native_operation_needed(self.record_copy_functions[&r.name.text])
+                self.record_copy_functions
+                    .get(&r.name.text)
+                    .is_some_and(|id| self.native_operation_needed(*id))
                     && !self.record_copies.contains_key(&r.name.text)
             })
             .cloned()
@@ -209,6 +176,29 @@ impl Compiler {
                 name.span
                     .error(format!("unknown field '{}' on '{ty}'", name.text))
             })
+    }
+
+    pub(super) fn empty_record_constructor(
+        &mut self,
+        name: &str,
+        span: &Span,
+    ) -> Result<Option<Value>, String> {
+        let ty = self.resolve_type_text(name, &BTreeSet::new());
+        let base = tuples::type_parts(&ty).map_or(ty.as_str(), |(base, _)| base);
+        let empty = self.records.get(&ty).is_some_and(|r| r.fields.is_empty())
+            || self
+                .generic_records
+                .get(base)
+                .is_some_and(|r| r.fields.is_empty());
+        if !empty {
+            return Ok(None);
+        }
+        self.check_type(&Name {
+            constant: None,
+            text: ty.clone(),
+            span: span.clone(),
+        })?;
+        Ok(Some(self.emit(&ty, Rvalue::Aggregate(vec![]))))
     }
 
     pub(super) fn record_value(

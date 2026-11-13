@@ -10,7 +10,7 @@ extern type RangeIter {
     representation: "iterator<Int>",
 }
 /// 現在の位置と終端をコピーした範囲の走査状態を返します。
-extern fn copy(it: RangeIter) -> RangeIter {
+extern fn __copy__(it: RangeIter) -> RangeIter {
     lower_owned: "make_obj<RuskRangeIter>(*$0)",
     effects: "read_fresh",
     code: "Obj<RuskRangeIter> copy_range_iterator(Obj<RuskRangeIter> it, [[maybe_unused]] Loc loc) { return make_obj<RuskRangeIter>(*it); }",

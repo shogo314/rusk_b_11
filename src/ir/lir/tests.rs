@@ -67,6 +67,7 @@ fn an_outer_loop_exit_cleans_inner_scopes_but_preserves_the_returned_owner() {
 #[test]
 fn corrupt_jump_targets_are_rejected() {
     let mut program = Program {
+        readonly_members: Default::default(),
         types: BTreeMap::new(),
         functions: vec![],
         main: Function {
@@ -94,6 +95,7 @@ fn fixed_source_contracts_are_separate_from_ir_invariants() {
         column: 1,
     };
     let mut program = Program {
+        readonly_members: Default::default(),
         types: BTreeMap::from([("Int".into(), hir::Type::Scalar(hir::Scalar::I64))]),
         functions: vec![],
         main: Function {
@@ -194,6 +196,7 @@ fn escape_metadata_requires_unique_parameter_identities_and_preserves_return_loc
         ),
     ]);
     let mut program = Program {
+        readonly_members: Default::default(),
         types,
         functions: vec![],
         main: function,

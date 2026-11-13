@@ -1,0 +1,110 @@
+//! 辞書順の順列操作と、独立した配列を返す遅延列挙です。
+
+/// 配列の構造変更を検出する内部カウンターです。
+extern fn __sequence_version__<T>(values: Vec<T>) -> Int {
+    effects: "read_fresh",
+    code: "Obj<std::int64_t> @{fn}(Obj<@{Vec<T>}> values,Loc){return make_obj<std::int64_t>(static_cast<std::int64_t>(values->version));}",
+}
+/// 半開区間を、その要素の共有先を交換して反転します。
+fn reverse_range<T>(values: Vec<T>, left: Int, right: Int) {
+    assert(0 <= left && left <= right && right <= values.len());
+    let i = left;
+    let j = right;
+    while i < j {
+        j -= 1;
+        if i < j {
+            let held := values[i];
+            values[i] := values[j];
+            values[j] := held;
+            i += 1;
+        }
+    }
+}
+/// 比較関数の実行中に配列が構造変更されていないことを検査します。
+fn __permutation_less__<T, F>(values: Vec<T>, left: Int, right: Int, compare: F) -> Bool {
+    let version := __sequence_version__(values);
+    let result := compare(values[left], values[right]);
+    assert(version == __sequence_version__(values));
+    return result;
+}
+/// 比較関数の順序で次の順列へ更新します。末尾なら先頭に戻してfalseです。
+fn next_permutation_by_comp<T, F>(values: Vec<T>, compare: F) -> Bool {
+    let pivot := values.len() - 2;
+    while pivot >= 0 {
+        if __permutation_less__(values, pivot, pivot + 1, compare) {
+            break;
+        }
+        pivot -= 1;
+    }
+    if pivot < 0 {
+        reverse_range(values, 0, values.len());
+        return false;
+    }
+    let last := values.len() - 1;
+    while !__permutation_less__(values, pivot, last, compare) {
+        last -= 1;
+    }
+    let held := values[pivot];
+    values[pivot] := values[last];
+    values[last] := held;
+    reverse_range(values, pivot + 1, values.len());
+    return true;
+}
+/// 全順序で次の順列へ更新します。末尾なら昇順に戻してfalseです。
+fn next_permutation<T>(values: Vec<T>) -> Bool {
+    return next_permutation_by_comp(values, (a: T, b: T) => __total_less__(a, b));
+}
+/// 全順序で前の順列へ更新します。先頭なら降順に戻してfalseです。
+fn prev_permutation<T>(values: Vec<T>) -> Bool {
+    return next_permutation_by_comp(values, (a: T, b: T) => __total_less__(b, a));
+}
+/// 比較関数の順序で前の順列へ更新します。
+fn prev_permutation_by_comp<T, F>(values: Vec<T>, compare: F) -> Bool {
+    return next_permutation_by_comp(values, (a: T, b: T) => compare(b, a));
+}
+/// 重複を除いた辞書順の順列を列挙する状態です。
+struct Permutations<T> {
+    /// 列挙用の内部配列。直接変更しないでください。
+    values: Vec<T>;
+    /// 次の順列があるかを保持します。
+    available: Bool;
+    /// 列挙処理への再入を検査します。
+    busy: Bool;
+}
+/// 入力をコピーして昇順から列挙します。空配列の順列は1個です。
+fn permutations<T>(values: Vec<T>) -> Permutations<T> {
+    let initial = values;
+    initial.sort();
+    return Permutations::<T> {
+        values: initial,
+        available: true,
+        busy: false
+    };
+}
+/// 同じ列挙状態を使って走査します。独立した状態にはcopyを使います。
+fn __iter__<T>(it: Permutations<T>) -> Permutations<T> {
+    return it;
+}
+/// 次の順列が存在するか調べます。
+fn __iter_has_next__<T>(it: Permutations<T>) -> Bool {
+    assert(!it.busy);
+    return it.available;
+}
+/// 現在の順列を要素ごとにコピーして返し、次へ進みます。
+fn __iter_next__<T>(it: Permutations<T>) -> Vec<T> {
+    assert(!it.busy && it.available);
+    it.busy = true;
+    let result = it.values;
+    it.available = next_permutation(it.values);
+    it.busy = false;
+    return result;
+}
+/// 現在位置と内部配列を独立にコピーします。
+fn __copy__<T>(it: Permutations<T>) -> Permutations<T> {
+    assert(!it.busy);
+    return Permutations::<T> {
+        values: copy(it.values),
+        available: copy(it.available),
+        busy: false
+    };
+}

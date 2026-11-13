@@ -49,8 +49,21 @@ impl Query {
         }
     }
 }
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct WritePath {
+    pub path: Vec<Projection>,
+    pub recursive: bool,
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ParameterEffects {
+    /// When this parameter is written, only its outer storage is changed.
+    /// False preserves the conservative whole-reachable-value interpretation.
+    pub root_only: bool,
+    pub write_paths: Option<BTreeSet<WritePath>>,
+    /// All external retention is through storage whose type keeps the value readonly.
+    pub readonly_sealed: bool,
+    /// Contained paths whose retained aliases keep their readonly type.
+    pub readonly_sealed_paths: BTreeSet<Vec<Projection>>,
     pub read: Effect,
     pub write: Effect,
     pub structural: Effect,
@@ -61,6 +74,10 @@ pub(crate) struct ParameterEffects {
 impl ParameterEffects {
     fn unknown() -> Self {
         Self {
+            root_only: false,
+            write_paths: None,
+            readonly_sealed: false,
+            readonly_sealed_paths: BTreeSet::new(),
             read: Effect::Unknown,
             write: Effect::Unknown,
             structural: Effect::Unknown,
@@ -68,7 +85,79 @@ impl ParameterEffects {
             retained: Effect::Unknown,
         }
     }
+    fn paths(&self) -> Option<BTreeSet<WritePath>> {
+        if self.root_only {
+            Some(
+                [WritePath {
+                    path: vec![],
+                    recursive: false,
+                }]
+                .into(),
+            )
+        } else {
+            self.write_paths.clone()
+        }
+    }
     fn join(&mut self, other: &Self) {
+        if other.write != Effect::No || other.structural != Effect::No {
+            self.write_paths = if self.write == Effect::No && self.structural == Effect::No {
+                other.paths()
+            } else {
+                match (self.paths(), other.paths()) {
+                    (Some(mut a), Some(b)) => {
+                        a.extend(b);
+                        if a.len() <= 64 && a.iter().all(|p| p.path.len() <= 16) {
+                            Some(a)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            };
+        }
+        if other.retained != Effect::No {
+            self.readonly_sealed_paths = if self.retained == Effect::No {
+                other.readonly_sealed_paths.clone()
+            } else {
+                let left = if self.readonly_sealed {
+                    [vec![]].into()
+                } else {
+                    self.readonly_sealed_paths.clone()
+                };
+                let right = if other.readonly_sealed {
+                    [vec![]].into()
+                } else {
+                    other.readonly_sealed_paths.clone()
+                };
+                let mut common = BTreeSet::new();
+                for a in &left {
+                    for b in &right {
+                        if a.starts_with(b) {
+                            common.insert(a.clone());
+                        } else if b.starts_with(a) {
+                            common.insert(b.clone());
+                        }
+                    }
+                }
+                if common.len() > 64 {
+                    common.clear();
+                }
+                common
+            };
+            self.readonly_sealed = if self.retained == Effect::No {
+                other.readonly_sealed
+            } else {
+                self.readonly_sealed && other.readonly_sealed
+            };
+        }
+        if other.write != Effect::No || other.structural != Effect::No {
+            self.root_only = if self.write == Effect::No && self.structural == Effect::No {
+                other.root_only
+            } else {
+                self.root_only && other.root_only
+            };
+        }
         self.read.join(other.read);
         self.write.join(other.write);
         self.structural.join(other.structural);
@@ -363,6 +452,24 @@ impl Summary {
         if has_body && self.source.has_contract() {
             return Err("native contract requires an opaque body".into());
         }
+        for (ty, effect) in parameters.iter().zip(&self.parameters) {
+            if effect.readonly_sealed_paths.len() > 64
+                || effect.readonly_sealed_paths.iter().any(|p| p.len() > 16)
+            {
+                return Err("unbounded readonly retention paths".into());
+            }
+            for path in &effect.readonly_sealed_paths {
+                project_type(ty, path, types)?;
+            }
+            if let Some(paths) = &effect.write_paths {
+                if paths.len() > 64 || paths.iter().any(|p| p.path.len() > 16) {
+                    return Err("unbounded write paths".into());
+                }
+                for path in paths {
+                    project_type(ty, &path.path, types)?;
+                }
+            }
+        }
         for alias in &self.returned.aliases {
             let source = project_type(&parameters[alias.parameter], &alias.parameter_path, types)?;
             let target = project_type(result, &alias.result_path, types)?;
@@ -382,6 +489,10 @@ impl Summary {
                 }
             };
             let effect = ParameterEffects {
+                root_only: false,
+                write_paths: None,
+                readonly_sealed: effect.readonly_sealed,
+                readonly_sealed_paths: BTreeSet::new(),
                 read: uncertain(effect.read),
                 write: uncertain(effect.write),
                 structural: uncertain(effect.structural),
@@ -395,7 +506,73 @@ impl Summary {
             }
         } else {
             for origin in &value.aliases {
-                self.parameters[origin.parameter].join(effect);
+                let mut passed = effect.clone();
+                let seals: BTreeSet<Vec<Projection>> = if effect.readonly_sealed {
+                    [vec![]].into()
+                } else {
+                    effect.readonly_sealed_paths.clone()
+                };
+                passed.readonly_sealed_paths.clear();
+                passed.readonly_sealed = false;
+                for seal in seals {
+                    let path = if origin.result_path.starts_with(&seal) {
+                        Some(origin.parameter_path.clone())
+                    } else if seal.starts_with(&origin.result_path) {
+                        Some(
+                            origin
+                                .parameter_path
+                                .iter()
+                                .cloned()
+                                .chain(seal[origin.result_path.len()..].iter().cloned())
+                                .collect::<Vec<_>>(),
+                        )
+                    } else {
+                        None
+                    };
+                    if let Some(path) = path.filter(|p| p.len() <= 16) {
+                        passed.readonly_sealed_paths.insert(path);
+                    }
+                }
+                passed.readonly_sealed = passed.readonly_sealed_paths.contains(&vec![]);
+                let mut paths = BTreeSet::new();
+                for write in effect.paths().unwrap_or_else(|| {
+                    [WritePath {
+                        path: vec![],
+                        recursive: true,
+                    }]
+                    .into()
+                }) {
+                    if write.path.starts_with(&origin.result_path) {
+                        let path = origin
+                            .parameter_path
+                            .iter()
+                            .cloned()
+                            .chain(write.path[origin.result_path.len()..].iter().cloned())
+                            .collect::<Vec<_>>();
+                        paths.insert(WritePath {
+                            path,
+                            recursive: write.recursive,
+                        });
+                    } else if write.recursive && origin.result_path.starts_with(&write.path) {
+                        paths.insert(WritePath {
+                            path: origin.parameter_path.clone(),
+                            recursive: true,
+                        });
+                    }
+                }
+                if paths.is_empty() {
+                    passed.write = Effect::No;
+                    passed.structural = Effect::No;
+                }
+                passed.root_only =
+                    paths.len() == 1 && paths.iter().all(|p| p.path.is_empty() && !p.recursive);
+                passed.write_paths =
+                    if paths.len() <= 64 && paths.iter().all(|p| p.path.len() <= 16) {
+                        Some(paths)
+                    } else {
+                        None
+                    };
+                self.parameters[origin.parameter].join(&passed);
             }
         }
     }

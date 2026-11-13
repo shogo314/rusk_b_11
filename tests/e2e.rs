@@ -1225,7 +1225,7 @@ extern fn score() -> Score {
     cpp_name: "make_score",
     code: "Obj<std::int64_t> make_score(Loc) { return make_obj<std::int64_t>(7); }",
 }
-extern fn copy(x:Score) -> Score {
+extern fn __copy__(x:Score) -> Score {
     cpp_name: "copy_score",
     code: "Obj<std::int64_t> copy_score(Obj<std::int64_t> x, Loc) { ++copies; return make_obj<std::int64_t>(*x); }",
 }

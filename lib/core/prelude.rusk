@@ -19,3 +19,5 @@ include "../algorithms/find.rusk";
 include "bitwise.rusk";
 include "checks.rusk";
 include "minmax.rusk";
+include "hashing.rusk";
+include "metadata.rusk";

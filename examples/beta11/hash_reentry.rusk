@@ -1,0 +1,79 @@
+// Hash/equality callbacks may touch another container, but cannot reenter the
+// storage whose hash table operation is in progress.
+extern symbol hash_reentry_state {
+    code: "std::function<void()> hash_reentry_change;",
+}
+extern fn change_hash_owner() {
+    cpp_name: "change_hash_owner",
+    code: "void change_hash_owner(Loc){hash_reentry_change();}",
+}
+extern fn release_hash_owner() {
+    cpp_name: "release_hash_owner",
+    code: "void release_hash_owner(Loc){hash_reentry_change=nullptr;}",
+}
+extern fn watch_hash_owner<T>(owner: T) {
+    code: "void @{fn}(Obj<@{T}> owner,Loc){hash_reentry_change=[owner](){owner->entries.clear();++owner->version;};}",
+}
+fn same_int(a: Int, b: Int) -> Bool {
+    return a == b;
+}
+in mode: Int;
+{
+    struct Key {
+        value: Int;
+    }
+    let armed := false;
+    fn __copy__(key: Key) -> Key {
+        if armed && (same_int(mode, 3) || same_int(mode, 4)) {
+            change_hash_owner();
+        }
+        return Key {
+            value: key.value
+        };
+    }
+    fn __hash__(key: Key) -> Int {
+        if armed && !same_int(mode, 1) {
+            change_hash_owner();
+        }
+        return 0;
+    }
+    fn __eq__(a: Key, b: Key) -> Bool {
+        if armed && same_int(mode, 1) {
+            change_hash_owner();
+        }
+        return same_int(a.value, b.value);
+    }
+    let table := Dict::<Key, Int>();
+    let other := Dict::<Key, Int>();
+    table.set(
+        Key {
+            value: 1
+        },
+        2
+    );
+    if same_int(mode, 2) {
+        watch_hash_owner(other);
+    } else {
+        watch_hash_owner(table);
+    }
+    armed = true;
+    wt "before";
+    if same_int(mode, 3) {
+        table.keys();
+    } else {
+        if same_int(mode, 4) {
+            __iter_next__(__iter__(table));
+        } else {
+            if same_int(mode, 5) {
+                copy(table);
+            } else {
+                wt table.contains(
+                    Key {
+                        value: 2
+                    }
+                );
+            }
+        }
+    }
+    release_hash_owner();
+}

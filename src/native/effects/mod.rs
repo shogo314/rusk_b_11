@@ -20,6 +20,59 @@ pub(crate) fn dependency_covered(base: &Summary, dependency: &Summary) -> bool {
         })
 }
 
+/// Generated aggregates and standard storage have no arbitrary destructor calls
+/// when every stored value has the same property. Recursive nominal graphs are
+/// checked coinductively; opaque foreign values keep release effects unknown.
+fn quiet_release(ty: &str, types: &BTreeMap<String, crate::ir::hir::Type>) -> bool {
+    fn walk(
+        ty: &str,
+        types: &BTreeMap<String, crate::ir::hir::Type>,
+        seen: &mut std::collections::BTreeSet<String>,
+        budget: &mut usize,
+        depth: usize,
+    ) -> bool {
+        use crate::ir::hir::Type;
+        if *budget == 0 || depth > 128 {
+            return false;
+        }
+        *budget -= 1;
+        if !seen.insert(ty.into()) {
+            return true;
+        }
+        match types.get(ty) {
+            Some(Type::Scalar(_)) => true,
+            Some(Type::Vector(t) | Type::Buffer(t) | Type::Set(t)) => {
+                walk(t, types, seen, budget, depth + 1)
+            }
+            Some(
+                Type::Record(fields)
+                | Type::Shared(fields)
+                | Type::FunctionFamily { fields, .. }
+                | Type::Callable { fields, .. },
+            ) => fields
+                .iter()
+                .all(|(_, t)| walk(t, types, seen, budget, depth + 1)),
+            Some(Type::Enum(variants)) => variants.iter().all(|(_, fields)| {
+                fields
+                    .iter()
+                    .all(|t| walk(t, types, seen, budget, depth + 1))
+            }),
+            Some(Type::Dict { key, value }) => {
+                walk(key, types, seen, budget, depth + 1)
+                    && walk(value, types, seen, budget, depth + 1)
+            }
+            Some(Type::Iterator { element, retained }) => {
+                walk(element, types, seen, budget, depth + 1)
+                    && retained
+                        .iter()
+                        .all(|(_, t)| walk(t, types, seen, budget, depth + 1))
+            }
+            _ => false,
+        }
+    }
+    walk(ty, types, &mut Default::default(), &mut 4096, 0)
+}
+
 pub(crate) fn contract(
     specification: &str,
     parameters: &[String],
@@ -70,6 +123,7 @@ pub(crate) fn contract(
                 .first_mut()
                 .ok_or("native write contract requires an argument")?;
             first.write = Effect::May;
+            first.root_only = true;
             if specification == "checked_resize_first" {
                 first.structural = Effect::May;
             }
@@ -121,9 +175,12 @@ pub(crate) fn contract(
                 return Err("native element store type mismatch".into());
             }
             summary.parameters[0].write = Effect::May;
+            summary.parameters[0].root_only = source == 1 || quiet_release(element, types);
             summary.parameters[0].structural = if source == 1 { Effect::May } else { Effect::No };
             summary.parameters[source].escape = Effect::May;
             summary.parameters[source].retained = Effect::May;
+            summary.parameters[source].readonly_sealed = element.starts_with("__RuskReadonly<");
+            summary.parameters[source].readonly_sealed_paths = readonly_paths(element, types);
             if source == 1 {
                 if result != "Unit" {
                     return Err("native append requires Unit result".into());
@@ -205,6 +262,42 @@ pub(crate) fn contract(
             summary.parameters[0].escape = Effect::May;
             summary.may_fail = Effect::May;
         }
+        "checked_clear_first" => {
+            if parameters.len() != 1 || result != "Unit" {
+                return Err("native clear requires one vector and Unit result".into());
+            }
+            let Some(crate::ir::hir::Type::Vector(element)) = types.get(&parameters[0]) else {
+                return Err("native clear requires a vector".into());
+            };
+            if !quiet_release(element, types) {
+                return Ok(Summary::opaque(parameters.len()));
+            }
+            summary.parameters[0].write = Effect::May;
+            summary.parameters[0].structural = Effect::May;
+            summary.parameters[0].root_only = true;
+            summary.may_fail = Effect::May;
+        }
+        "pop_element" => {
+            if parameters.len() != 1
+                || !matches!(
+                    types.get(&parameters[0]),
+                    Some(crate::ir::hir::Type::Vector(_))
+                )
+            {
+                return Err("native pop requires one vector".into());
+            }
+            summary.parameters[0].write = Effect::May;
+            summary.parameters[0].structural = Effect::May;
+            summary.parameters[0].root_only = true;
+            summary.parameters[0].escape = Effect::May;
+            summary.returned.fresh = false;
+            summary.returned.aliases.insert(ReturnAlias {
+                result_path: vec![],
+                parameter: 0,
+                parameter_path: vec![crate::analysis::effects::Projection::Element],
+            });
+            summary.may_fail = Effect::May;
+        }
         "element" => {
             if parameters.len() != 2
                 || !matches!(
@@ -231,3 +324,60 @@ pub(crate) fn contract(
 
 #[cfg(test)]
 mod tests;
+
+// This is a must-set: omitted recursive or opaque paths retain conservative
+// behavior. Every returned path is guaranteed readonly by the storage type.
+fn readonly_paths(
+    ty: &str,
+    types: &BTreeMap<String, crate::ir::hir::Type>,
+) -> std::collections::BTreeSet<Vec<crate::analysis::effects::Projection>> {
+    use crate::analysis::effects::Projection;
+    use crate::ir::hir::Type;
+    fn walk(
+        ty: &str,
+        types: &BTreeMap<String, Type>,
+        path: &mut Vec<Projection>,
+        result: &mut std::collections::BTreeSet<Vec<Projection>>,
+        budget: &mut usize,
+    ) {
+        if *budget == 0 || path.len() > 16 || result.len() >= 64 {
+            return;
+        }
+        *budget -= 1;
+        if ty.starts_with("__RuskReadonly<") {
+            result.insert(path.clone());
+            return;
+        }
+        let children: Vec<(Projection, &str)> = match types.get(ty) {
+            Some(Type::Vector(t) | Type::Buffer(t)) => vec![(Projection::Element, t)],
+            Some(
+                Type::Record(f)
+                | Type::Shared(f)
+                | Type::Callable { fields: f, .. }
+                | Type::FunctionFamily { fields: f, .. },
+            ) => f
+                .iter()
+                .enumerate()
+                .map(|(i, (_, t))| (Projection::Field(i), t.as_str()))
+                .collect(),
+            Some(Type::Enum(v)) => v
+                .iter()
+                .enumerate()
+                .flat_map(|(variant, (_, fields))| {
+                    fields.iter().enumerate().map(move |(field, t)| {
+                        (Projection::VariantField { variant, field }, t.as_str())
+                    })
+                })
+                .collect(),
+            _ => vec![],
+        };
+        for (projection, child) in children {
+            path.push(projection);
+            walk(child, types, path, result, budget);
+            path.pop();
+        }
+    }
+    let mut result = std::collections::BTreeSet::new();
+    walk(ty, types, &mut vec![], &mut result, &mut 4096);
+    result
+}

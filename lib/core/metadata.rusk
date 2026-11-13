@@ -1,0 +1,44 @@
+//! このプログラムを生成したRuskコンパイラの情報です。
+
+/// 生成に使ったコンパイラの版を返します。β版は prerelease の版名を持ちます。
+extern fn compiler_version() -> Str {
+    cpp_name: "rusk_metadata_version",
+    effects: "read_fresh",
+    code: "Obj<std::string> rusk_metadata_version(Loc){return make_obj<std::string>(rusk_compiler_version);}",
+}
+
+extern fn __compiler_revision__() -> Str {
+    cpp_name: "rusk_metadata_revision",
+    effects: "read_fresh",
+    code: "Obj<std::string> rusk_metadata_revision(Loc){return make_obj<std::string>(rusk_compiler_revision);}",
+}
+
+/// 生成に使ったコンパイラのGitリビジョンを返します。取得できなければNoneです。
+fn compiler_revision() -> Option<Str> {
+    let revision := __compiler_revision__();
+    if revision.len() == 0 {
+        return Option::<Str>::None;
+    }
+    return Option::<Str>::Some(revision);
+}
+
+/// コンパイラと標準ライブラリの公開元URLを返します。
+extern fn compiler_source_url() -> Str {
+    cpp_name: "rusk_metadata_source_url",
+    effects: "read_fresh",
+    code: "Obj<std::string> rusk_metadata_source_url(Loc){return make_obj<std::string>(rusk_compiler_source_url);}",
+}
+
+extern fn __compiler_modified__() -> Bool {
+    cpp_name: "rusk_metadata_modified",
+    effects: "read_fresh",
+    code: "Obj<bool> rusk_metadata_modified(Loc){return make_obj<bool>(rusk_compiler_modified);}",
+}
+
+/// コンパイラのビルド時にGit作業ツリーの変更があったかを返します。リビジョン不明ならNoneです。
+fn compiler_modified() -> Option<Bool> {
+    if let Some(revision) = compiler_revision() {
+        return Option::<Bool>::Some(__compiler_modified__());
+    }
+    return Option::<Bool>::None;
+}

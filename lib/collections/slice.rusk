@@ -1,0 +1,227 @@
+//! 所有元を保持する固定範囲の共有ビューです。構造変更後の使用は失敗します。
+/// 所有元・開始位置・長さを保持する共有ビューです。内部フィールドを直接変更しないでください。
+struct Slice<S, T> {
+    /// 所有元への共有です。
+    owner: S;
+    /// 共有範囲の先頭です。
+    start: Int;
+    /// 共有範囲の長さです。
+    length: Int;
+    /// 作成時の構造変更カウンターです。
+    version: Int;
+}
+/// スライスの所有元の構造変更を検査します。
+fn __slice_validate__<S, T>(view: Slice<S, T>) {
+    assert(view.version == __sequence_version__(view.owner));
+}
+/// 現在の共有範囲の長さを返します。
+fn len<S, T>(view: Slice<S, T>) -> Int {
+    __slice_validate__(view);
+    return view.length;
+}
+/// 現在の共有範囲が空か調べます。
+fn is_empty<S, T>(view: Slice<S, T>) -> Bool {
+    return view.len() == 0;
+}
+/// スライス内の添字を所有元の添字へ変換します。
+fn __slice_index__<S, T>(view: Slice<S, T>, position: Int) -> Int {
+    __slice_validate__(view);
+    let index = position;
+    if index < 0 {
+        index += view.length;
+    }
+    assert(0 <= index && index < view.length);
+    return view.start + index;
+}
+/// 範囲内の要素を取得します。整数配列の要素は独立した読み取り専用の値です。
+fn __getitem__<S, T>(view: Slice<S, T>, position: Int) -> T {
+    return view.owner[__slice_index__(view, position)];
+}
+/// 範囲内の要素を取得します。
+fn get<S, T>(view: Slice<S, T>, position: Int) -> T {
+    return view[position];
+}
+/// 範囲内の格納先を置き換えます。
+fn __setitem__<S, T>(view: Slice<S, T>, position: Int, value: T) -> T {
+    view.owner[__slice_index__(view, position)] := value;
+    return value;
+}
+/// 所有元全体をコピーして、同じ範囲を指す独立したスライスを返します。
+fn __copy__<S, T>(view: Slice<S, T>) -> Slice<S, T> {
+    __slice_validate__(view);
+    let owner = view.owner;
+    __slice_validate__(view);
+    return Slice::<S, T> {
+        owner: owner,
+        start: copy(view.start),
+        length: copy(view.length),
+        version: __sequence_version__(owner)
+    };
+}
+/// スライスの範囲内に、さらに共有ビューを作ります。
+fn slice<S, T>(view: Slice<S, T>, left: Int, right: Int) -> Slice<S, T> {
+    __slice_validate__(view);
+    assert(0 <= left && left <= right && right <= view.length);
+    return Slice::<S, T> {
+        owner: view.owner,
+        start: view.start + left,
+        length: right - left,
+        version: copy(view.version)
+    };
+}
+/// スライスを読み取り専用の共有経路として返します。
+fn readonly_slice<S, T>(view: Slice<S, T>) -> readonly Slice<S, T> {
+    __slice_validate__(view);
+    return view;
+}
+/// スライスの現在位置を保持する走査状態です。
+struct SliceIter<S, T> {
+    /// 走査元の共有ビューです。
+    view: Slice<S, T>;
+    /// 次に取得する位置です。
+    index: Int;
+}
+/// 所有元を共有する走査状態を作ります。
+fn __iter__<S, T>(view: Slice<S, T>) -> SliceIter<S, T> {
+    __slice_validate__(view);
+    return SliceIter::<S, T> {
+        view: view,
+        index: 0
+    };
+}
+/// 現在の走査状態を共有します。
+fn __iter__<S, T>(it: SliceIter<S, T>) -> SliceIter<S, T> {
+    return it;
+}
+/// 次の要素が存在するか調べます。
+fn __iter_has_next__<S, T>(it: SliceIter<S, T>) -> Bool {
+    __slice_validate__(it.view);
+    return it.index < it.view.length;
+}
+/// 次の要素を返して位置を進めます。
+fn __iter_next__<S, T>(it: SliceIter<S, T>) -> T {
+    assert(__iter_has_next__(it));
+    let value := it.view[it.index];
+    it.index += 1;
+    return value;
+}
+/// 所有元を共有し、走査位置だけ独立にコピーします。
+fn __copy__<S, T>(it: SliceIter<S, T>) -> SliceIter<S, T> {
+    __slice_validate__(it.view);
+    return SliceIter::<S, T> {
+        view: it.view,
+        index: copy(it.index)
+    };
+}
+
+/// 所有元の構造変更カウンターを取得します。
+extern fn __sequence_version__(a: IntArray) -> Int {
+    code: "Obj<std::int64_t> rusk_std_slice_1(Obj<RuskIntArray> a,[[maybe_unused]] Loc loc){return make_obj<std::int64_t>(static_cast<std::int64_t>(a->version));}",
+    cpp_name: "rusk_std_slice_1",
+    effects: "read_fresh",
+}
+
+/// 半開区間[left,right)の共有ビューを作ります。構造変更後の使用は失敗します。
+fn slice(owner: IntArray, left: Int, right: Int) -> Slice<IntArray, Int> {
+    assert(0 <= left && left <= right && right <= owner.len());
+    return Slice::<IntArray, Int> {
+        owner: owner,
+        start: left,
+        length: right - left,
+        version: __sequence_version__(owner)
+    };
+}
+
+/// 所有元全体の共有ビューを作ります。
+fn slice(owner: IntArray) -> Slice<IntArray, Int> {
+    return slice(owner, 0, owner.len());
+}
+
+/// 所有元全体を読み取り専用で共有するビューを作ります。
+fn readonly_slice(owner: IntArray) -> readonly Slice<IntArray, Int> {
+    return slice(owner);
+}
+
+/// 所有元の構造変更カウンターを取得します。
+extern fn __sequence_version__<T>(a: Deque<T>) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{Deque<T>}> a,[[maybe_unused]] Loc loc){return make_obj<std::int64_t>(static_cast<std::int64_t>(a->version));}",
+    effects: "read_fresh",
+}
+
+/// 半開区間[left,right)の共有ビューを作ります。構造変更後の使用は失敗します。
+fn slice<T>(owner: Deque<T>, left: Int, right: Int) -> Slice<Deque<T>, T> {
+    assert(0 <= left && left <= right && right <= owner.len());
+    return Slice::<Deque<T>, T> {
+        owner: owner,
+        start: left,
+        length: right - left,
+        version: __sequence_version__(owner)
+    };
+}
+
+/// 所有元全体の共有ビューを作ります。
+fn slice<T>(owner: Deque<T>) -> Slice<Deque<T>, T> {
+    return slice(owner, 0, owner.len());
+}
+
+/// 所有元全体を読み取り専用で共有するビューを作ります。
+fn readonly_slice<T>(owner: Deque<T>) -> readonly Slice<Deque<T>, T> {
+    return slice(owner);
+}
+
+/// 所有元の構造変更カウンターを取得します。
+extern fn __sequence_version__<T, N: Int>(a: Array<T, N>) -> Int {
+    code: "Obj<@{Int}> @{fn}(Obj<@{Array<T,N>}> a,[[maybe_unused]] Loc loc){return make_obj<std::int64_t>(static_cast<std::int64_t>(a->version));}",
+    effects: "read_fresh",
+}
+
+/// 半開区間[left,right)の共有ビューを作ります。構造変更後の使用は失敗します。
+fn slice<T, N: Int>(owner: Array<T, N>, left: Int, right: Int) -> Slice<Array<T, N>, T> {
+    assert(0 <= left && left <= right && right <= owner.len());
+    return Slice::<Array<T, N>, T> {
+        owner: owner,
+        start: left,
+        length: right - left,
+        version: __sequence_version__(owner)
+    };
+}
+
+/// 所有元全体の共有ビューを作ります。
+fn slice<T, N: Int>(owner: Array<T, N>) -> Slice<Array<T, N>, T> {
+    return slice(owner, 0, owner.len());
+}
+
+/// 所有元全体を読み取り専用で共有するビューを作ります。
+fn readonly_slice<T, N: Int>(owner: Array<T, N>) -> readonly Slice<Array<T, N>, T> {
+    return slice(owner);
+}
+
+/// 半開区間[left,right)の共有ビューを作ります。構造変更後の使用は失敗します。
+fn slice<T>(owner: Vec<T>, left: Int, right: Int) -> Slice<Vec<T>, T> {
+    assert(0 <= left && left <= right && right <= owner.len());
+    return Slice::<Vec<T>, T> {
+        owner: owner,
+        start: left,
+        length: right - left,
+        version: __sequence_version__(owner)
+    };
+}
+
+/// 所有元全体の共有ビューを作ります。
+fn slice<T>(owner: Vec<T>) -> Slice<Vec<T>, T> {
+    return slice(owner, 0, owner.len());
+}
+
+/// 所有元全体を読み取り専用で共有するビューを作ります。
+fn readonly_slice<T>(owner: Vec<T>) -> readonly Slice<Vec<T>, T> {
+    return slice(owner);
+}
+/// スライスの要素をコピーして、所有元から独立した配列へ変換します。
+fn copy_to_vec<S, T>(view: Slice<S, T>) -> Vec<T> {
+    let result: Vec<T> := [];
+    for i in 0 .. view.len() {
+        result.push_back(copy(view[i]));
+    }
+    __slice_validate__(view);
+    return result;
+}

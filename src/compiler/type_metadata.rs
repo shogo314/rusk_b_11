@@ -175,6 +175,7 @@ impl Compiler {
     ) -> Result<(), String> {
         for child in references(kind) {
             self.check_type(&Name {
+                constant: None,
                 text: child.into(),
                 span: name.span.clone(),
             })?;

@@ -71,9 +71,9 @@ wt match alias { Empty => true, Full(_) => false, };
 wt match detached { Full(x) => x, Empty => [], };
 ```
 
-出力は `7`、`Yes`、`1` です。`let detached = cell` と `copy(cell)` は有効なvariantのpayloadを再帰的にコピーします。payloadに同じオブジェクトを複数回渡した場合も、コピー先の各フィールドは独立してコピーします。enum全体への `=` は右辺のスナップショットをコピーし、左辺の外側の同一性を保ってvariantとpayloadを更新します。`:=` は共有先を結び直します。
+出力は `7`、`Yes`、`1` です。`let detached = cell` と `copy(cell)` は有効なvariantのpayloadを再帰的にコピーします。既定のコピーはpayloadの各フィールドの`__copy__`を個別に呼び、元の内部共有を再現しません。手動実装が共有を返す場合は、その共有が残ります。enum全体への `=` は右辺のスナップショットをコピーし、左辺の外側の同一性を保ってvariantとpayloadを更新します。`:=` は共有先を結び直します。
 
-enumは構造体のフィールド、配列、辞書の値、別のenumのpayloadに使えます。比較・出力・真偽値変換・既定コンストラクターは一般のenumには自動生成しません。必要な操作は型に対応する通常の関数・演算フックとして定義します。辞書キーには使えません。
+enumは構造体のフィールド、配列、辞書の値、別のenumのpayloadに使えます。等値比較はvariantとpayloadを比較し、ハッシュにもvariantを含めて自動生成します。手動定義との優先規則は[構造体と同じ](records.md#recursive-types)です。順序比較・出力・真偽値変換・既定コンストラクターは一般のenumには自動生成しません。必要な操作は型に対応する通常の関数・演算フックとして定義します。等値比較・ハッシュ・コピーを使える型は辞書キーにも使えます。
 
 ## Optionも標準のenum
 
@@ -97,4 +97,4 @@ wt match value { Some(n) => n, None => 0, };
 
 ## パターンの拡張と制限
 
-入れ子のenum・定数・構造体・タプル・orパターン・ガードと、if let・while letに対応します。[パターン分岐の仕様](patterns.md)を参照してください。再帰型は未対応です。
+入れ子のenum・定数・構造体・タプル・orパターン・ガードと、if let・while letに対応します。[パターン分岐の仕様](patterns.md)を参照してください。再帰型と循環共有の扱いは[構造体](records.md#recursive-types)と共通です。

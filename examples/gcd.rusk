@@ -1,4 +1,4 @@
-fn gcd(a: Int, b: Int) -> Int {
+fn euclidean_gcd(a: Int, b: Int) -> Int {
     while b {
         let r := a % b;
         a := b;
@@ -7,4 +7,4 @@ fn gcd(a: Int, b: Int) -> Int {
     return a;
 }
 in a, b: Int;
-wt gcd(a, b);
+wt euclidean_gcd(a, b);

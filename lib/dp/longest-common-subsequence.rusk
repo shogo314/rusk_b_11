@@ -1,0 +1,16 @@
+/// 2つの文字列の最長共通部分列の長さ。時間O(nm)、領域O(m)。
+fn longest_common_subsequence(x: Str, y: Str) -> Int {
+    let previous := [0; y.len() + 1];
+    for i in 0 .. x.len() {
+        let current := [0; y.len() + 1];
+        for j in 0 .. y.len() {
+            if x[i] == y[j] {
+                current[j + 1] = previous[j] + 1;
+            } else {
+                current[j + 1] = max(previous[j + 1], current[j]);
+            }
+        }
+        previous := current;
+    }
+    return previous[-1];
+}

@@ -102,17 +102,12 @@ fn missing_and_nested_includes_fail_before_writing_output() {
 
 #[test]
 fn union_find_library_uses_structs_and_deep_copy() {
-    let root = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/examples/beta02/library/union_find.rusk"
-    );
-    let source = format!(
+    let source = String::from(
         r#"
-include {root:?};
 let uf:=UnionFind(4); uf.unite(0,1);
 let detached = uf; detached.unite(1,2);
 wt uf.same(0,1),uf.same(0,2),detached.same(0,2);
-"#
+"#,
     );
     let out = Case::new(&source).run("");
     assert!(

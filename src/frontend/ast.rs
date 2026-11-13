@@ -22,6 +22,9 @@ impl Span {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Name {
+    /// On a generic parameter, Some("Int"/"Bool") declares a value parameter.
+    /// Ordinary names and type parameters have no value kind.
+    pub constant: Option<String>,
     pub text: String,
     pub span: Span,
 }
@@ -196,6 +199,7 @@ fn parameters(parameters: &g::Parameters<'_>) -> Result<Vec<(DeclaredName, Name)
                 access,
                 escape,
             } = annotations(&p.binding_modifiers)?;
+            let ty = type_name(&p.type_name);
             Ok((
                 DeclaredName {
                     name: name(&p.identifier),
@@ -203,22 +207,48 @@ fn parameters(parameters: &g::Parameters<'_>) -> Result<Vec<(DeclaredName, Name)
                     access,
                     escape,
                 },
-                type_name(&p.type_name),
+                ty,
             ))
         })
         .collect()
 }
 fn name(n: &g::Identifier<'_>) -> Name {
     Name {
+        constant: None,
         text: n.identifier.text().into(),
         span: Span::token(&n.identifier),
     }
 }
 fn type_parameters(t: &g::TypeParameters<'_>) -> Vec<Name> {
-    std::iter::once(t.identifier.as_ref())
-        .chain(t.type_parameters_list.iter().map(|t| t.identifier.as_ref()))
-        .map(name)
+    std::iter::once(t.type_parameter.as_ref())
+        .chain(
+            t.type_parameters_list
+                .iter()
+                .map(|t| t.type_parameter.as_ref()),
+        )
+        .map(|p| {
+            let mut n = name(&p.identifier);
+            n.constant = p
+                .type_parameter_opt
+                .as_ref()
+                .map(|kind| name(&kind.identifier).text);
+            n
+        })
         .collect()
+}
+pub(super) fn constant_token<'a, 't>(
+    argument: &'a g::ConstantArgument<'t>,
+) -> (&'a Token<'t>, bool) {
+    match argument {
+        g::ConstantArgument::IntLiteral(x) => (&x.int_literal.int_literal, false),
+        g::ConstantArgument::NegativeIntArgument(x) => {
+            (&x.negative_int_argument.int_literal.int_literal, true)
+        }
+        g::ConstantArgument::BoolLiteral(x) => match x.bool_literal.as_ref() {
+            g::BoolLiteral::True(x) => (&x.r#true, false),
+            g::BoolLiteral::False(x) => (&x.r#false, false),
+        },
+    }
 }
 fn reference(t: &g::Reference<'_>) -> Name {
     let mut n = name(&t.identifier);
@@ -247,6 +277,25 @@ fn type_arguments(t: &g::TypeArguments<'_>) -> Vec<Name> {
 }
 fn type_name(t: &g::TypeName<'_>) -> Name {
     match t {
+        g::TypeName::ReadonlyType(t) => {
+            let mut n = type_name(&t.readonly_type.type_name);
+            if !n.text.starts_with("__RuskReadonly<") {
+                n.text = canonical_type(&format!("__RuskReadonly<{}>", n.text));
+            }
+            n.span = Span::token(&t.readonly_type.readonly);
+            n
+        }
+        g::TypeName::ConstantArgument(t) => {
+            let (token, negative) = constant_token(&t.constant_argument);
+            let text = format!("{}{}", if negative { "-" } else { "" }, token.text());
+            Name {
+                constant: None,
+                text: text
+                    .parse::<i64>()
+                    .map_or(text.clone(), |value| value.to_string()),
+                span: Span::token(token),
+            }
+        }
         g::TypeName::NamedType(t) => {
             let mut n = name(&t.named_type.identifier);
             if let Some(args) = &t.named_type.named_type_opt {
@@ -270,6 +319,7 @@ fn type_name(t: &g::TypeName<'_>) -> Name {
                 .map(type_name)
                 .collect::<Vec<_>>();
             Name {
+                constant: None,
                 text: format!(
                     "Tuple<{}>",
                     types
@@ -786,6 +836,7 @@ fn simple_stmt(s: &g::SimpleStatement<'_>) -> Result<Stmt, String> {
 }
 fn loop_label(label: &g::LoopLabel<'_>) -> Result<Name, String> {
     let name = Name {
+        constant: None,
         text: label
             .loop_label
             .text()
@@ -1482,4 +1533,68 @@ fn if_expr(x: &g::IfExpr<'_>) -> Result<Expr, String> {
             Box::new(block_expr(&x.block0)?),
         ),
     })
+}
+
+// Type text is canonical in the AST; consumers may render readonly wrappers.
+pub(crate) fn type_parts_text(ty: &str) -> Option<(&str, Vec<&str>)> {
+    let (base, rest) = ty.split_once('<')?;
+    let inner = rest.strip_suffix('>')?;
+    let mut depth = 0usize;
+    let mut start = 0;
+    let mut parts = vec![];
+    for (i, c) in inner.char_indices() {
+        match c {
+            '<' => depth += 1,
+            '>' => depth = depth.checked_sub(1)?,
+            ',' if depth == 0 => {
+                parts.push(&inner[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    if depth != 0 {
+        return None;
+    }
+    parts.push(&inner[start..]);
+    Some((base, parts))
+}
+
+pub(crate) fn canonical_type(ty: &str) -> String {
+    fn normalize(ty: &str, depth: usize) -> String {
+        if depth > 128 {
+            return ty.into();
+        }
+        if let Some((owner, variant)) = ty.rsplit_once("::") {
+            return format!("{}::{variant}", normalize(owner, depth + 1));
+        }
+        let Some((base, args)) = type_parts_text(ty) else {
+            return ty.into();
+        };
+        let args = args
+            .iter()
+            .map(|a| normalize(a, depth + 1))
+            .collect::<Vec<_>>();
+        if base == "__RuskReadonly" && args.len() == 1 && args[0].starts_with("__RuskReadonly<") {
+            return args[0].clone();
+        }
+        format!("{base}<{}>", args.join(","))
+    }
+    normalize(ty, 0)
+}
+pub(crate) fn display_type(ty: &str) -> String {
+    if let Some((base, args)) = type_parts_text(ty) {
+        if base == "__RuskReadonly" && args.len() == 1 {
+            return format!("readonly {}", display_type(args[0]));
+        }
+        format!(
+            "{base}<{}>",
+            args.iter()
+                .map(|a| display_type(a))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    } else {
+        ty.into()
+    }
 }

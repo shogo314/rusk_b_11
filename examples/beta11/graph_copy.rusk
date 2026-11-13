@@ -1,0 +1,66 @@
+struct Graph {
+    id: Int;
+    next: Vec<Graph>;
+}
+fn __copy__(root: Graph) -> Graph {
+    let copied := Dict::<Int, Graph>();
+    fn clone(node: Graph) -> Graph {
+        if let Some(previous) = copied.get(node.id) {
+            return previous;
+        }
+        let result := Graph {
+            id: copy(node.id),
+            next: []
+        };
+        copied.set(node.id, result);
+        for child in node.next {
+            result.next.push_back(clone(child));
+        }
+        return result;
+    }
+    return clone(root);
+}
+fn __eq__(left: Graph, right: Graph) -> Bool {
+    let seen := Set::<(Int, Int)>();
+    fn equal(left: Graph, right: Graph) -> Bool {
+        if left.id != right.id || left.next.len() != right.next.len() {
+            return false;
+        }
+        let pair := (left.id, right.id);
+        if seen.contains(pair) {
+            return true;
+        }
+        seen.insert(pair);
+        for i in 0 .. left.next.len() {
+            if !equal(left.next[i], right.next[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+    return equal(left, right);
+}
+let first := Graph {
+    id: 1,
+    next: []
+};
+let second := Graph {
+    id: 2,
+    next: []
+};
+first.next.push_back(second);
+second.next.push_back(first);
+let cloned = first;
+wt first == cloned;
+cloned.next[0].next[0].id = 10;
+wt first.id, cloned.id, first == cloned;
+second.next.clear();
+cloned.next[0].next.clear();
+first.next.clear();
+cloned.next.clear();
+let self := Graph {
+    id: 3,
+    next: []
+};
+self.next.push_back(self);
+self.next.clear();

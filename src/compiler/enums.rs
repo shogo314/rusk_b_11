@@ -29,6 +29,7 @@ impl Compiler {
         if variants.is_empty() {
             return Err(name.span.error("enum requires at least one variant"));
         }
+        generics::parameters_valid(parameters)?;
         let mut names = BTreeSet::new();
         for p in parameters {
             if !names.insert(&p.text) {
@@ -62,68 +63,85 @@ impl Compiler {
                 d.parameters.len()
             )));
         }
-        self.check_enum_cycle(name, &mut vec![], &mut BTreeSet::new())?;
         if self.preparing_enums.len() >= 64 || self.enums.len() >= 512 {
             return Err(name
                 .span
                 .error("recursive enum or enum specialization limit exceeded"));
         }
-        if self.preparing_enums.contains(&name.text) {
-            return Err(name
-                .span
-                .error("recursive enum types are not implemented yet"));
-        }
-        for arg in &args {
+        let bindings: BTreeMap<String, String> = d
+            .parameters
+            .iter()
+            .zip(&args)
+            .map(|(p, a)| (p.text.clone(), (*a).into()))
+            .collect();
+        generics::validate_bindings(&d.parameters, &bindings, &name.span)?;
+        for (parameter, arg) in d.parameters.iter().zip(&args) {
+            if parameter.constant.is_some() {
+                continue;
+            }
             self.check_type(&Name {
+                constant: None,
                 text: (*arg).into(),
                 span: name.span.clone(),
             })?;
         }
         self.preparing_enums.push(name.text.clone());
-        let bindings = d
-            .parameters
-            .iter()
-            .zip(&args)
-            .map(|(p, a)| (p.text.clone(), (*a).to_string()))
-            .collect();
         let mut variants = d.variants.clone();
         for (_, fields) in &mut variants {
             for field in fields {
                 field.text = generics::substitute(&field.text, &bindings);
-                self.check_type(field)?;
             }
         }
-        self.preparing_enums.pop();
         let native = format!("RuskEnum{}", self.enums.len());
         self.types.insert(name.text.clone(), native.clone());
         self.enums.insert(
             name.text.clone(),
             Enum {
                 definition: base.into(),
-                variants,
+                variants: variants.clone(),
             },
         );
+        // Register the nominal type and layout before checking payloads, so
+        // recursive references reuse this specialization instead of expanding it.
+        for (_, fields) in &variants {
+            for field in fields {
+                self.check_type(field)?;
+            }
+        }
+        self.preparing_enums.pop();
         let ty = &name.text;
-        let copy_index = self.native_function(
-            "copy",
-            vec![ty.clone()],
-            ty,
-            |cpp| {
-                format!("Obj<{native}> {cpp}(Obj<{native}> x,Loc loc){{return deep_copy(x,loc);}}")
-            },
-            &name.span,
-        )?;
-        self.enum_copy_functions.insert(ty.clone(), copy_index);
-        self.register_derived_copy(copy_index);
-        let assign_index = self.native_function(
-            "__assign__",
-            vec![ty.clone(); 2],
-            "Unit",
-            |_| String::new(),
-            &name.span,
-        )?;
-        self.native_derivation_tasks
-            .insert(assign_index, ("enum_assign".into(), ty.clone()));
+        if !self.has_manual_operation("__copy__", ty, 1) {
+            let copy_index = self.native_function(
+                "__copy__",
+                vec![ty.clone()],
+                ty,
+                |cpp| {
+                    format!(
+                        "Obj<{native}> {cpp}(Obj<{native}> x,Loc loc){{return deep_copy(x,loc);}}"
+                    )
+                },
+                &name.span,
+            )?;
+            self.functions[copy_index].scope = self.aggregate_scope(ty);
+            self.aggregate_operations.insert(copy_index);
+            self.enum_copy_functions.insert(ty.clone(), copy_index);
+            self.register_derived_copy(copy_index);
+        }
+        if !self.has_manual_operation("__assign__", ty, 2) {
+            let assign_index = self.native_function(
+                "__assign__",
+                vec![ty.clone(); 2],
+                "Unit",
+                |_| String::new(),
+                &name.span,
+            )?;
+            self.functions[assign_index].scope = self.aggregate_scope(ty);
+            self.aggregate_operations.insert(assign_index);
+            self.native_derivation_tasks
+                .insert(assign_index, ("enum_assign".into(), ty.clone()));
+        }
+        self.register_aggregate_comparisons(ty, true, &name.span)?;
+        self.register_aggregate_hash(ty, true, &name.span)?;
         Ok(true)
     }
     fn constructor_parts(&self, name: &str) -> Option<(String, String)> {
@@ -249,6 +267,7 @@ impl Compiler {
             format!("{base}<{}>", arguments.join(","))
         };
         self.check_type(&Name {
+            constant: None,
             text: ty.clone(),
             span: span.clone(),
         })?;
@@ -265,7 +284,9 @@ impl Compiler {
             .enums
             .iter()
             .filter(|(ty, _)| {
-                self.native_operation_needed(self.enum_copy_functions[*ty])
+                self.enum_copy_functions
+                    .get(*ty)
+                    .is_some_and(|id| self.native_operation_needed(*id))
                     && !self.enum_copies.contains_key(*ty)
             })
             .map(|(ty, _)| ty.clone())
@@ -280,60 +301,6 @@ impl Compiler {
             )?;
             self.enum_copies.insert(ty, code);
         }
-        Ok(())
-    }
-    fn check_enum_cycle(
-        &self,
-        name: &Name,
-        path: &mut Vec<String>,
-        checked: &mut BTreeSet<String>,
-    ) -> Result<(), String> {
-        if path.len() > 64 || name.text.len() > 16_384 || path.contains(&name.text) {
-            return Err(name
-                .span
-                .error("recursive enum type or type expansion limit exceeded"));
-        }
-        if checked.contains(&name.text) {
-            return Ok(());
-        }
-        let (base, args) = type_parts(&name.text).unwrap_or((&name.text, vec![]));
-        path.push(name.text.clone());
-        let mut fields = vec![];
-        if let Some(d) = self.enum_definitions.get(base) {
-            let bindings = d
-                .parameters
-                .iter()
-                .zip(&args)
-                .map(|(p, a)| (p.text.clone(), (*a).to_string()))
-                .collect();
-            fields.extend(d.variants.iter().flat_map(|(_, fs)| fs).map(|f| Name {
-                text: generics::substitute(&f.text, &bindings),
-                span: f.span.clone(),
-            }));
-        } else if let Some(r) = self.records.get(&name.text) {
-            fields.extend(r.fields.iter().map(|(_, t)| t.clone()));
-        } else if let Some(r) = self.generic_records.get(base) {
-            let bindings = r
-                .parameters
-                .iter()
-                .zip(&args)
-                .map(|(p, a)| (p.text.clone(), (*a).to_string()))
-                .collect();
-            fields.extend(r.fields.iter().map(|(_, f)| Name {
-                text: generics::substitute(&f.text, &bindings),
-                span: f.span.clone(),
-            }));
-        }
-        // Traverse type arguments as well, including containers and phantom arguments.
-        fields.extend(args.iter().map(|a| Name {
-            text: (*a).into(),
-            span: name.span.clone(),
-        }));
-        for field in fields {
-            self.check_enum_cycle(&field, path, checked)?;
-        }
-        path.pop();
-        checked.insert(name.text.clone());
         Ok(())
     }
     pub(super) fn enum_forwards(&self) -> String {

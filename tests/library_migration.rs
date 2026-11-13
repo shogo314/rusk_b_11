@@ -250,9 +250,10 @@ fn vector_operations_are_generic_declarations_with_independent_names() {
         "__vec_repeat__",
         "len",
         "push_back",
+        "clear",
         "__getitem__",
         "__setitem__",
-        "copy",
+        "__copy__",
         "__assign__",
         "__bool__",
         "reverse",
@@ -289,7 +290,7 @@ wt migrated_len(empty),migrated___bool__(empty),migrated___not__(empty),migrated
 migrated_push_back(empty,4);wt migrated___getitem__(empty,0);
 let seed:=[1];let values:=migrated___vec_repeat__(seed,2);
 seed[0]=8;values[0][0]=3;wt seed,values;
-let snapshot:=migrated_copy(values);snapshot[0][0]=9;wt values,snapshot;
+let snapshot:=migrated___copy__(values);snapshot[0][0]=9;wt values,snapshot;
 let joined:=migrated___add__(values,snapshot);joined[0][0]=6;wt values;
 migrated___iadd__(empty,empty);wt migrated_len(empty),migrated_pop_back(empty);
 migrated___assign__(values,values);wt values;
@@ -325,7 +326,7 @@ extern type Key {cpp_name:"std::int64_t",}
 extern fn make_key(source:Vec<Int>,x:Int)->Key {
     cpp_name:"watch_key",code:"Obj<std::int64_t> watch_key(Obj<RuskVec<std::int64_t>> source,Obj<std::int64_t> x,Loc){watched=source;return KEY_OBJECT;}",
 }
-extern fn copy(x:Key)->Key {cpp_name:"watch_key_copy",code:"Obj<std::int64_t> watch_key_copy(Obj<std::int64_t> x,Loc){COPY_CHANGE return make_obj<std::int64_t>(*x);}",}
+extern fn __copy__(x:Key)->Key {cpp_name:"watch_key_copy",code:"Obj<std::int64_t> watch_key_copy(Obj<std::int64_t> x,Loc){COPY_CHANGE return make_obj<std::int64_t>(*x);}",}
 extern fn __lt__(a:Key,b:Key)->Bool {
     cpp_name:"watch_key_less",code:"Obj<bool> watch_key_less(Obj<std::int64_t> a,Obj<std::int64_t> b,Loc){COMPARE_CHANGE return make_obj<bool>(*a<*b);}",
 }
@@ -503,7 +504,7 @@ fn reductions_preserve_copy_hooks_snapshots_and_collection_sharing() {
 extern symbol observations {code:"inline unsigned long long rusk_copy_count=0;",}
 extern type Token {cpp_name:"std::int64_t",}
 extern fn Token(x:Int)->Token {cpp_name:"make_token",code:"Obj<std::int64_t> make_token(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x);}",}
-extern fn copy(x:Token)->Token {cpp_name:"copy_token",code:"Obj<std::int64_t> copy_token(Obj<std::int64_t> x,Loc){++rusk_copy_count;return make_obj<std::int64_t>(*x);}",}
+extern fn __copy__(x:Token)->Token {cpp_name:"copy_token",code:"Obj<std::int64_t> copy_token(Obj<std::int64_t> x,Loc){++rusk_copy_count;return make_obj<std::int64_t>(*x);}",}
 extern fn value(x:Token)->Int {cpp_name:"token_value",code:"Obj<std::int64_t> token_value(Obj<std::int64_t> x,Loc){return x;}",}
 extern fn copies()->Int {cpp_name:"copy_count",code:"Obj<std::int64_t> copy_count(Loc){return make_obj<std::int64_t>(rusk_copy_count);}",}
 struct Acc{token:Token;}
@@ -578,10 +579,11 @@ fn vector_input_preserves_custom_readers_and_snapshots_the_length() {
 struct Row {value:Int;}
 extern symbol input_state {code:"Obj<std::int64_t> input_length;",}
 extern fn watch(n:Int) {cpp_name:"watch_input_length",code:"void watch_input_length(Obj<std::int64_t> n,Loc){input_length=n;}",}
-extern fn __read__()->Row {
+extern fn read_row(shape:Row)->Row {
     cpp_name:"reader::row",
-    code:"namespace reader {Obj<RuskRecord0> row(Loc loc){++*input_length;return make_obj<RuskRecord0>(RuskRecord0{make_obj<std::int64_t>(rusk_read_int(loc))});}}",
+    code:"namespace reader {auto row(auto shape,Loc loc){++*input_length;shape->field_0=make_obj<std::int64_t>(rusk_read_int(loc));return shape;}}",
 }
+fn __read__()->Row{return read_row(Row{value:0});}
 let n:=2;watch(n);in rows(n):Vec<Row>;wt rows.len(),rows[0].value,rows[1].value,n;
 in tail:Int;wt tail;
 "#,
@@ -713,7 +715,7 @@ let rows:=[Row{value:1},Row{value:2}];wt rows;wt rows;
         let source = format!(
             r#"
 struct Row{{value:Int;}}
-extern fn __write__(row:Row){{cpp_name:"opaque_writer",code:"void opaque_writer(Obj<RuskRecord0>,Loc){{}}",}}
+extern fn __write__(row:Row){{cpp_name:"opaque_writer",code:"void opaque_writer(auto,Loc){{}}",}}
 fn show({restriction} rows:Vec<Row>){{wt rows;}}
 show([Row{{value:1}}]);
 "#
@@ -763,7 +765,7 @@ extern symbol copy_counter{code:"std::int64_t score_copies=0;",}
 extern fn score(x:Int)->Score {cpp_name:"make_score",code:"Obj<std::int64_t> make_score(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x);}",}
 extern fn value(x:Score)->Int {cpp_name:"score_value",code:"Obj<std::int64_t> score_value(Obj<std::int64_t> x,Loc){return x;}",}
 extern fn copies()->Int {cpp_name:"score_count",code:"Obj<std::int64_t> score_count(Loc){return make_obj<std::int64_t>(score_copies);}",}
-extern fn copy(x:Score)->Score {cpp_name:"user::copy",code:"namespace user{Obj<std::int64_t> copy(Obj<std::int64_t> x,Loc){++score_copies;return make_obj<std::int64_t>(*x);}}",}
+extern fn __copy__(x:Score)->Score {cpp_name:"user::copy",code:"namespace user{Obj<std::int64_t> copy(Obj<std::int64_t> x,Loc){++score_copies;return make_obj<std::int64_t>(*x);}}",}
 extern fn __write__(x:Score){cpp_name:"write_score",code:"void write_score(Obj<std::int64_t> x,Loc){rusk_write(*x);}",}
 let seed:=score(2);let rows:=[seed;2];wt copies();
 let independent=rows;wt copies();value(rows[0])=7;wt value(seed),rows,independent;
@@ -801,10 +803,10 @@ fn vector_copy_and_assignment_guard_user_operations_and_displaced_cleanup() {
     let copying = r#"
 extern type Score{cpp_name:"std::int64_t",}
 struct Row{value:Score;other:Int;}
-extern symbol watched{code:"struct RuskRecord0;Obj<RuskVec<RuskRecord0>> watched;",}
+extern symbol watched{code:"std::function<void()> clear_watched;",}
 extern fn score()->Score{cpp_name:"score",code:"Obj<std::int64_t> score(Loc){return make_obj<std::int64_t>(1);}",}
-extern fn watch(rows:Vec<Row>){cpp_name:"watch",code:"void watch(Obj<RuskVec<RuskRecord0>> rows,Loc){watched=rows;}",}
-extern fn copy(x:Score)->Score{cpp_name:"copy_score",code:"Obj<std::int64_t> copy_score(Obj<std::int64_t> x,Loc){watched->clear();++watched->version;return make_obj<std::int64_t>(*x);}",}
+extern fn watch<T>(rows:Vec<T>){code:"void @{fn}(Obj<@{Vec<T>}> rows,Loc){clear_watched=[rows](){rows->clear();++rows->version;};}",}
+extern fn __copy__(x:Score)->Score{cpp_name:"copy_score",code:"Obj<std::int64_t> copy_score(Obj<std::int64_t> x,Loc){clear_watched();return make_obj<std::int64_t>(*x);}",}
 let rows:=[Row{value:score(),other:2}];watch(rows);wt "before";let copied=rows;
 "#;
     let assigning = r#"
@@ -990,8 +992,8 @@ let source:=Some({});let copied:=optional(source);wt same(source.value(),copied.
         assert_eq!(out.stdout, b"3 1\nNo\n");
     }
     for copier in [
-        "fn copy(x:Leaf)->Leaf{return x;}",
-        r#"extern fn copy(x:Leaf)->Leaf{cpp_name:"opaque_copy",code:"Obj<std::int64_t> opaque_copy(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x);}",}"#,
+        "fn __copy__(x:Leaf)->Leaf{return x;}",
+        r#"extern fn __copy__(x:Leaf)->Leaf{cpp_name:"opaque_copy",code:"Obj<std::int64_t> opaque_copy(Obj<std::int64_t> x,Loc){return make_obj<std::int64_t>(*x);}",}"#,
     ] {
         let source = format!(
             r#"
@@ -1017,7 +1019,7 @@ extern fn leaf()->Leaf{cpp_name:"leaf",code:"Obj<std::int64_t> leaf(Loc){return 
 extern fn value(x:Leaf)->Int{cpp_name:"value_leaf",code:"Obj<std::int64_t> value_leaf(Obj<std::int64_t> x,Loc){return x;}",}
 extern fn watch<F>(f:F){code:"void @{fn}(Obj<@{F}> f,Loc loc){change_source=[f,loc](){@{invoke F()->Unit}(f,loc);};}",}
 extern fn unwatch(){cpp_name:"unwatch",code:"void unwatch(Loc){change_source={};}",}
-extern fn copy(x:Leaf)->Leaf{cpp_name:"copy_leaf",code:"Obj<std::int64_t> copy_leaf(Obj<std::int64_t> x,Loc){if(change_source)change_source();return make_obj<std::int64_t>(*x);}",}
+extern fn __copy__(x:Leaf)->Leaf{cpp_name:"copy_leaf",code:"Obj<std::int64_t> copy_leaf(Obj<std::int64_t> x,Loc){if(change_source)change_source();return make_obj<std::int64_t>(*x);}",}
 let source:=Choice::Pair(leaf(),7);watch(()=>{source=Choice::Empty;});let copied=source;unwatch();
 wt match source{Pair(x,n)=>false,Empty=>true,};
 wt match copied{Pair(x,n)=>(value(x),n),Empty=>(0,0),};
@@ -1044,9 +1046,11 @@ extern fn leaf()->Leaf{cpp_name:"leaf",code:"Obj<std::int64_t> leaf(Loc){return 
 extern fn wrap<T>(x:T)->T{code:"Obj<@{T}> @{fn}(Obj<@{T}> x,Loc){return Obj<@{T}>(new @{T}(*x),[](auto* p){++dropped;delete p;});}",}
 extern fn watch<T>(a:Vec<T>){code:"void @{fn}(Obj<@{Vec<T>}> a,Loc){clear_source=[a](){a->clear();++a->version;};}",}
 extern fn clear_watch(){cpp_name:"clear_watch",code:"void clear_watch(Loc){clear_source={};}",}
-extern fn copy(x:Leaf)->Leaf{cpp_name:"copy_leaf",code:"Obj<std::int64_t> copy_leaf(Obj<std::int64_t> x,Loc){if(clear_source)clear_source();during=dropped;return make_obj<std::int64_t>(*x);}",}
+extern fn __copy__(x:Leaf)->Leaf{cpp_name:"copy_leaf",code:"Obj<std::int64_t> copy_leaf(Obj<std::int64_t> x,Loc){if(clear_source)clear_source();during=dropped;return make_obj<std::int64_t>(*x);}",}
 extern fn first_copy<T>(a:Vec<T>)->T{code:"Obj<@{T}> @{fn}(Obj<@{Vec<T>}> a,Loc loc){return @{owned_call copy(T)->T}((*a)[0],loc);}",}
-extern fn counts()->(Int,Int){cpp_name:"counts",code:"Obj<RuskRecord0> counts(Loc){return make_obj<RuskRecord0>(RuskRecord0{make_obj<std::int64_t>(during),make_obj<std::int64_t>(dropped)});}",}
+extern fn during_count()->Int{cpp_name:"during_count",code:"Obj<std::int64_t> during_count(Loc){return make_obj<std::int64_t>(during);}",}
+extern fn dropped_count()->Int{cpp_name:"dropped_count",code:"Obj<std::int64_t> dropped_count(Loc){return make_obj<std::int64_t>(dropped);}",}
+fn counts()->(Int,Int){return (during_count(),dropped_count());}
 let rows:=[wrap(Choice::Pair(leaf(),7))];watch(rows);let copied:=first_copy(rows);clear_watch();
 wt counts(),rows.len(),match copied{Pair(x,n)=>n,Empty=>0,};
 "#;
@@ -1075,7 +1079,7 @@ fn aggregate_assignments_use_independent_declarations_and_preserve_identity() {
     let library = library::source("collections/prelude.rusk");
     let start = library.find("extern fn aggregate_assign_body<").unwrap();
     let end = library[start..]
-        .find("// Standard Option operations")
+        .find("extern fn product_read_body<")
         .unwrap()
         + start;
     let declarations = library[start..end]
@@ -1163,7 +1167,7 @@ fn derived_assignment_keeps_unknown_effects_and_propagates_copy_failures() {
     let definitions = r#"
 extern type Leaf {cpp_name:"std::int64_t",}
 extern fn leaf()->Leaf {cpp_name:"assignment_leaf",code:"Obj<std::int64_t> assignment_leaf(Loc){return make_obj<std::int64_t>(1);}",}
-extern fn copy(x:Leaf)->Leaf {cpp_name:"assignment_copy",code:"Obj<std::int64_t> assignment_copy(Obj<std::int64_t>,Loc loc){fail(loc,\"copy rejected\");}",}
+extern fn __copy__(x:Leaf)->Leaf {cpp_name:"assignment_copy",code:"Obj<std::int64_t> assignment_copy(Obj<std::int64_t>,Loc loc){fail(loc,\"copy rejected\");}",}
 "#;
     for operation in [
         "struct Row{n:Leaf;}let a:=Row{n:leaf()};let b:=Row{n:leaf()};wt \"before\";a=b;",
@@ -1232,10 +1236,7 @@ let value:=Choice::Value(original);match value{Value(x)=>{wt number(x.inner.valu
 fn product_readers_use_field_operations_under_independent_names() {
     let library = library::source("collections/prelude.rusk");
     let start = library.find("extern fn product_read_body<").unwrap();
-    let end = start
-        + library[start..]
-            .find("// Standard Option operations")
-            .unwrap();
+    let end = library[start..].find("\n}\n").unwrap() + start + 3;
     let declaration = library[start..end]
         .lines()
         .filter(|line| !line.trim_start().starts_with("derive:"))
@@ -1507,7 +1508,7 @@ wt (Row{value:4},Other{value:5});
         let source = format!(
             r#"
 struct Row{{value:Int;}}
-extern fn __write__(row:Row){{cpp_name:"opaque_tuple_field",code:"void opaque_tuple_field(Obj<RuskRecord0>,Loc){{}}",}}
+extern fn __write__(row:Row){{cpp_name:"opaque_tuple_field",code:"void opaque_tuple_field(auto,Loc){{}}",}}
 fn show({restriction} value:(Row,Row)){{wt value;}}
 show((Row{{value:1}},Row{{value:2}}));
 "#
@@ -1643,7 +1644,7 @@ wt (1,Row{value:2})==(7,Row{value:2});
         let source = format!(
             r#"
 struct Row{{value:Int;}}
-extern fn __lt__(a:Row,b:Row)->Bool{{cpp_name:"opaque_tuple_compare",code:"Obj<bool> opaque_tuple_compare(Obj<RuskRecord0>,Obj<RuskRecord0>,Loc){{return make_obj<bool>(false);}}",}}
+extern fn __lt__(a:Row,b:Row)->Bool{{cpp_name:"opaque_tuple_compare",code:"Obj<bool> opaque_tuple_compare(auto,auto,Loc){{return make_obj<bool>(false);}}",}}
 fn check({restriction} a:(Row,Row),b:(Row,Row))->Bool{{return a<b;}}
 check((Row{{value:1}},Row{{value:2}}),(Row{{value:3}},Row{{value:4}}));
 "#
@@ -1791,7 +1792,7 @@ extern type Value{cpp_name:"std::int64_t",}
 extern symbol default_state{code:"Obj<std::string> original_key;",}
 extern fn watch(key:Str){cpp_name:"watch_default_key",code:"void watch_default_key(Obj<std::string> key,Loc){original_key=key;}",}
 extern fn Value()->Value{cpp_name:"make_default_value",code:"Obj<std::int64_t> make_default_value(Loc){*original_key=\"changed\";return make_obj<std::int64_t>(9);}",}
-extern fn copy(value:Value)->Value{cpp_name:"copy_default_value",code:"Obj<std::int64_t> copy_default_value(Obj<std::int64_t> value,Loc){return make_obj<std::int64_t>(*value);}",}
+extern fn __copy__(value:Value)->Value{cpp_name:"copy_default_value",code:"Obj<std::int64_t> copy_default_value(Obj<std::int64_t> value,Loc){return make_obj<std::int64_t>(*value);}",}
 extern fn number(value:Value)->Int{cpp_name:"default_value_number",code:"Obj<std::int64_t> default_value_number(Obj<std::int64_t> value,Loc){return value;}",}
 let values:=Dict::<Str,Value>();let key:="before";watch(key);wt number(values[key]),key;
 wt values.contains("before"),values.contains("changed"),values.len();
@@ -1936,7 +1937,7 @@ let d:=Dict::<Int,Token>();d.set(1,token());wt d.len(),number(d.get(1)?!);
     );
     let sharing = format!(
         r#"{source}
-extern fn copy(x:Token)->Token{{cpp_name:"shared_token_copy",code:"Obj<std::int64_t> shared_token_copy(Obj<std::int64_t> x,Loc){{return x;}}",}}
+extern fn __copy__(x:Token)->Token{{cpp_name:"shared_token_copy",code:"Obj<std::int64_t> shared_token_copy(Obj<std::int64_t> x,Loc){{return x;}}",}}
 let duplicate=d;let shared:=number(duplicate.get(1)?!);shared=9;wt number(d.get(1)?!);
 "#
     );
@@ -1969,7 +1970,7 @@ independent.get(1)?![0]=9;wt d.get(1)?!,independent.get(1)?!;
     }
     let source = r#"
 extern type Token{cpp_name:"std::int64_t",}
-extern fn copy(x:Token)->Token{cpp_name:"opaque_token_copy",code:"Obj<std::int64_t> opaque_token_copy(Obj<std::int64_t> x,Loc){return x;}",}
+extern fn __copy__(x:Token)->Token{cpp_name:"opaque_token_copy",code:"Obj<std::int64_t> opaque_token_copy(Obj<std::int64_t> x,Loc){return x;}",}
 fn clone(readonly noescape source:Dict<Int,Token>)->Dict<Int,Token>{return copy(source);}
 "#;
     let out = Case::new(source).compile();
@@ -2049,7 +2050,7 @@ fn hash_policies_use_logical_keys_and_preserve_basic_and_nested_key_behavior() {
 
 #[test]
 fn hash_key_eligibility_uses_rusk_types_even_when_native_hashes_exist() {
-    for key in ["Opaque", "Tuple<Int,Opaque>", "Row", "Vec<Int>", "Unit"] {
+    for key in ["Opaque", "Tuple<Int,Opaque>", "Unit"] {
         let source = format!(
             r#"
 extern type Opaque{{cpp_name:"std::int64_t",}}
@@ -2063,7 +2064,8 @@ let unused:Dict<{key},Int>;
         assert!(!out.status.success(), "{key}");
         let error = String::from_utf8_lossy(&out.stderr);
         assert!(
-            error.contains("native tuple fields require a Tuple") && error.contains("main.rusk:"),
+            (error.contains("__hash__") || error.contains("__eq__"))
+                && error.contains("main.rusk:"),
             "{error}"
         );
     }
@@ -2227,7 +2229,7 @@ fn lazy_copy_composes_shared_sources_and_preserves_readonly_noescape_boundaries(
     for source in [
         "fn leak<T>(noescape it:T)->T{return copy(it);}let input:=[1].map((x:Int)=>x);leak(input);",
         "fn leak<T>(noescape it:T)->T{return copy(it);}let input:=[1].filter((x:Int)=>true);leak(input);",
-        "extern type Token{cpp_name:\"std::int64_t\",}extern fn token()->Token{cpp_name:\"token\",code:\"Obj<std::int64_t> token(Loc){return make_obj<std::int64_t>(1);}\",}extern fn copy(x:Token)->Token{cpp_name:\"copy_token\",code:\"Obj<std::int64_t> copy_token(Obj<std::int64_t> x,Loc){return x;}\",}fn local<T>(readonly it:T){let saved=it;}let held:=token();let it:=[1].map((x:Int)=>{let captured:=held;x});local(it);",
+        "extern type Token{cpp_name:\"std::int64_t\",}extern fn token()->Token{cpp_name:\"token\",code:\"Obj<std::int64_t> token(Loc){return make_obj<std::int64_t>(1);}\",}extern fn __copy__(x:Token)->Token{cpp_name:\"copy_token\",code:\"Obj<std::int64_t> copy_token(Obj<std::int64_t> x,Loc){return x;}\",}fn local<T>(readonly it:T){let saved=it;}let held:=token();let it:=[1].map((x:Int)=>{let captured:=held;x});local(it);",
     ] {
         let out = Case::new(source).compile();
         let error = String::from_utf8_lossy(&out.stderr);

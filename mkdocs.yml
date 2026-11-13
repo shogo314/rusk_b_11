@@ -50,6 +50,7 @@ nav:
       - APIリファレンス: library/api.md
       - 入出力: library/input-output.md
       - 配列と文字列: library/sequences.md
+      - 数値・配列・整列コンテナと順列: library/extended.md
       - 辞書・集合と不在を返す操作: library/collections.md
       - Ruskで記述したデータ構造: library/data-structures.md
       - 関数を使う操作とデータ構造: library/algorithms.md

@@ -47,10 +47,12 @@
 |---|---|
 | `lib/core/` | 基本型、コピー・代入・基本出力、整数演算、比較、論理、変換、検査 |
 | `lib/io/` | 基本型の入力と行の読み込み |
-| `lib/collections/` | Vec・Dict・Set・Str・Optionの型と操作、列の比較に使う共通操作 |
+| `lib/collections/` | Vec・Dict・Set・Str・Option・IntArray・Sliceの型と操作、列の比較に使う共通操作 |
 | `lib/iter/` | Rangeとその走査、遅延map/filter |
 | `lib/derive/` | 集約型のコピー・代入、比較・入出力の導出テンプレート |
-| `lib/algorithms/` | 探索・走査を使う処理・集計・ソート |
+| `lib/data_structures/` | Union-Find、Fenwick木、セグメント木、優先度付きキュー、Deque・Array・ビット列・整列コンテナ |
+| `lib/math/`・`lib/string/`・`lib/dp/`・`lib/graph/` | BigInt・整数演算、剰余累乗、素数判定、Z-algorithm、LCS、グリッドBFS |
+| `lib/algorithms/` | 探索・走査を使う処理・集計・ソート・順列・選択・整列集合演算 |
 | `lib/runtime/prelude.rusk` | C++資源の指定とシンボルの依存宣言 |
 | `lib/runtime/*.hpp` | C++の基本ABI、入出力、スカラー、コンテナと反復状態 |
 

@@ -62,6 +62,26 @@ wt duplicate(7), duplicate::<Str>("abc");
 
 ただし関数を保持する構造体フィールドなどの呼び出しは、その関数値を呼びます。明示的な型引数を使う場合は`f::<T>(value, args)`と書きます。[型引数と構造体](records.md)も参照してください。
 
+## コンパイル時の値引数 {#value-arguments}
+
+型パラメータの一覧に`N: Int`や`B: Bool`を書くと、コンパイル時の値を受け取れます。struct・enum・関数・externで使えます。
+
+```rusk
+struct Residue<M: Int> { value: Int; }
+fn residue<M: Int>(value: Int) -> Residue<M> {
+    return Residue::<M> { value: value % M };
+}
+fn modulus<M: Int>(value: Residue<M>) -> Int { return M; }
+let value := residue::<7>(10);
+wt value.value, modulus(value); // 3 7
+```
+
+`Residue<7>`と`Residue<11>`は異なる型です。同じ宣言と同じ値の具体化は共有し、`07`と`7`のような表記の差では型を分けません。実引数・期待する返却型に現れる値引数は、型引数と同じ規則で推論します。明示するときは`::<3, true>`のように書きます。
+
+現在は符号付き64ビットIntリテラル、`true`・`false`、別の値パラメータからの受け渡しに対応します。一般の式・関数呼び出し・実行時の変数は引数にできません。具体化した関数の本体では値パラメータを読み取り専用・結び直し不可の値として参照でき、`[value; N]`などに利用できます。型引数と値引数の種類が合わない指定はコンパイルエラーです。
+
+externのC++テンプレートでは`@{N}`で値を展開できます。型の具体化や関数の具体化に対する既存の深さ・個数・作業量の上限は、値引数を使う場合も適用します。一般のコンパイル時関数評価は未対応です。
+
 ## 無名関数と捕捉
 
 ```rusk

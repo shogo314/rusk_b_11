@@ -196,7 +196,7 @@ fn assign_value<T>(a:T,b:T){a=b;}
 {
     let calls:=0;
     struct Cell{value:Int;}
-    fn copy(value:Cell)->Cell{calls+=1;return Cell{value:value.value};}
+    fn __copy__(value:Cell)->Cell{calls+=1;return Cell{value:value.value};}
     let holder:=Holder::<Cell>{value:Cell{value:7}};
     let detached:=clone_value(holder);
     let optional:=Some(Cell{value:9});

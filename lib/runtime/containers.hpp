@@ -42,19 +42,60 @@ inline std::uint64_t rusk_hash_seed() {
     static const auto seed = static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count());
     return seed;
 }
+// Calls through hash/equality policies may run arbitrary Rusk code. Keep a
+// storage operation indivisible with respect to reentry into that storage.
+inline thread_local Loc rusk_hash_location{"<hash>",0,0};
+struct RuskHashLocation {
+    Loc previous;
+    explicit RuskHashLocation(Loc loc):previous(rusk_hash_location){rusk_hash_location=loc;}
+    ~RuskHashLocation(){rusk_hash_location=previous;}
+};
+template<class Storage> struct RuskHashEntries : Storage {
+    using Storage::Storage;
+    mutable bool active=false;
+    struct Guard {
+        const RuskHashEntries& owner;
+        explicit Guard(const RuskHashEntries& value):owner(value){owner.check_read(rusk_hash_location);owner.active=true;}
+        ~Guard(){owner.active=false;}
+    };
+    void check_read(Loc loc) const {if(active)fail(loc,"container reentered during hash operation");}
+    static Storage copy_storage(const RuskHashEntries& source){Guard guard(source);return Storage(static_cast<const Storage&>(source));}
+    static Storage move_storage(RuskHashEntries& source){Guard guard(source);return Storage(std::move(static_cast<Storage&>(source)));}
+    RuskHashEntries()=default;
+    RuskHashEntries(const RuskHashEntries& source):Storage(copy_storage(source)){}
+    RuskHashEntries(RuskHashEntries&& source):Storage(move_storage(source)){}
+    RuskHashEntries& operator=(const RuskHashEntries& source){if(this!=&source){Guard a(*this);Guard b(source);Storage::operator=(static_cast<const Storage&>(source));}return *this;}
+    RuskHashEntries& operator=(RuskHashEntries&& source){if(this!=&source){Guard a(*this);Guard b(source);Storage::operator=(std::move(static_cast<Storage&>(source)));}return *this;}
+    template<class Key> auto find(const Key& key){Guard guard(*this);return Storage::find(key);}
+    template<class Key> auto find(const Key& key) const {Guard guard(*this);return Storage::find(key);}
+    template<class... A> auto emplace(A&&... args){Guard guard(*this);return Storage::emplace(std::forward<A>(args)...);}
+    template<class... A> auto insert(A&&... args){Guard guard(*this);return Storage::insert(std::forward<A>(args)...);}
+    template<class... A> auto erase(A&&... args){Guard guard(*this);return Storage::erase(std::forward<A>(args)...);}
+    template<class Key> decltype(auto) operator[](Key&& key){Guard guard(*this);return Storage::operator[](std::forward<Key>(key));}
+    void clear(){Guard guard(*this);Storage::clear();}
+    void reserve(std::size_t count){Guard guard(*this);Storage::reserve(count);}
+    void rehash(std::size_t count){Guard guard(*this);Storage::rehash(count);}
+    void swap(RuskHashEntries& other){if(this==&other)return;Guard a(*this);Guard b(other);Storage::swap(other);}
+    auto begin(){check_read(rusk_hash_location);return Storage::begin();}
+    auto end(){check_read(rusk_hash_location);return Storage::end();}
+    auto begin() const {check_read(rusk_hash_location);return Storage::begin();}
+    auto end() const {check_read(rusk_hash_location);return Storage::end();}
+    auto cbegin() const {check_read(rusk_hash_location);return Storage::cbegin();}
+    auto cend() const {check_read(rusk_hash_location);return Storage::cend();}
+};
 template<class T,auto Hash> struct RuskHash {
     std::size_t operator()(const Obj<T>& x) const {
-        return static_cast<std::size_t>(rusk_mix_hash(static_cast<std::uint64_t>(Hash(x,Loc{"<hash>",0,0})) + rusk_hash_seed()));
+        return static_cast<std::size_t>(rusk_mix_hash(static_cast<std::uint64_t>(Hash(x,rusk_hash_location)) + rusk_hash_seed()));
     }
 };
-template<class T,auto Equal> struct RuskEqual {bool operator()(const Obj<T>& a,const Obj<T>& b) const{return Equal(a,b,Loc{"<hash>",0,0});}};
+template<class T,auto Equal> struct RuskEqual {bool operator()(const Obj<T>& a,const Obj<T>& b) const{return Equal(a,b,rusk_hash_location);}};
 template<class K,class V,auto Hash,auto Equal> struct RuskDict {
-    using Entries=std::unordered_map<Obj<K>,Obj<V>,RuskHash<K,Hash>,RuskEqual<K,Equal>>;
+    using Entries=RuskHashEntries<std::unordered_map<Obj<K>,Obj<V>,RuskHash<K,Hash>,RuskEqual<K,Equal>>>;
     Entries entries;
     std::uint64_t version=0;
 };
 template<class K,auto Hash,auto Equal> struct RuskSet {
-    using Entries=std::unordered_set<Obj<K>,RuskHash<K,Hash>,RuskEqual<K,Equal>>;
+    using Entries=RuskHashEntries<std::unordered_set<Obj<K>,RuskHash<K,Hash>,RuskEqual<K,Equal>>>;
     Entries entries;
     std::uint64_t version=0;
 };
@@ -63,8 +104,16 @@ template<class Owner> struct RuskHashIterator {
     typename Owner::Entries::iterator position,end;
     std::uint64_t version;
     bool finished=false;
+    bool advancing=false;
     explicit RuskHashIterator(Obj<Owner> value):owner(value),position(value->entries.begin()),end(value->entries.end()),version(value->version){}
 };
 template<class Owner> void rusk_guard_iter(const Obj<RuskHashIterator<Owner>>& it,Loc loc){
+    if(!it->finished)it->owner->entries.check_read(loc);
     if(!it->finished && it->version!=it->owner->version)fail(loc,"container changed during iteration");
 }
+
+struct RuskHashAdvanceGuard {
+    bool& active;
+    RuskHashAdvanceGuard(bool& value,Loc loc):active(value){if(active)fail(loc,"iterator reentered during key copy");active=true;}
+    ~RuskHashAdvanceGuard(){active=false;}
+};
