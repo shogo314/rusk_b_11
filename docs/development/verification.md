@@ -106,10 +106,12 @@ oj-verify run examples/library_checker/unionfind.test.rusk
 
 Rusk・C++資源の依存ファイルに加え、処理系・文法・標準ライブラリ・検証スクリプトも依存として登録します。変更後は再検証され、変更がなければ成功履歴から省略される場合があります。ケースと生成物は`.verify-helper/cache/`、成功履歴は`.verify-helper/timestamps.local.json`にあります。Gitには含めません。
 
-CIの`Test`ワークフローも共通入口を使い、checks・tests・reference・sanitizers・publicを独立したジョブで実行します。単独ジョブの時間制限で後半の検証が実行できなくなることを防ぎ、一つが失敗してもほかのジョブを継続します。公開ケースはpublicジョブでキャッシュします。ローカルの公開ケース検証はオンライン提出・ACの確認とは別です。verification-helperの既定の実行時間制限は1ケース60秒で、各サイトの環境と制限時間を再現するものではありません。
+CIの`Test`ワークフローも共通入口を使い、checks・tests・reference・sanitizers・publicを独立したジョブで実行します。testsとreferenceは、それぞれ3つのジョブへテスト対象を分配します。通常版の対象はCargoのメタ情報から取得し、単体テストを持つ実行ファイルと全統合テストを含めます。referenceは共通入口の対象一覧を分配します。分割の和が元の全対象と一致し、重複・欠落がないことを`tests/test_test_runner.py`で検査します。単独ジョブの時間制限で後半の検証が実行できなくなることを防ぎ、一つが失敗してもほかのジョブを継続します。公開ケースはpublicジョブでキャッシュします。ローカルの公開ケース検証はオンライン提出・ACの確認とは別です。verification-helperの既定の実行時間制限は1ケース60秒で、各サイトの環境と制限時間を再現するものではありません。
 
 ## 文書例
 
 `tests/documentation.rs`は導入・チュートリアル・型の一覧・構造体・演算子・関数・捕捉・配列・アルゴリズム・データ構造の実行例と、fixed・readonly・noescapeの例を文書から直接読み取ります。契約の例では必要な呼び出しを補い、コメントの違反を有効にした拒否・診断の経路も検査します。順列列挙の掲載例も文書から直接実行します。`tests/extern_generics.rs`はexternの実行例を読み取ります。`tests/api.rs`は標準ライブラリの文書コメントから実行例を抽出し、APIの署名、説明、定義リンクも検査します。
 
 すべての文書の構文断片を自動検証するものではありません。掲載例を変更した場合は、実行可能な例・断片・意図的な失敗のどれかを明らかにし、対応するテストも更新します。[文書の編集方針](documentation.md)を参照してください。
+
+CIの分割をローカルで再現する場合は、`python3 tools/test.py --suite tests --shard 1/3`や`python3 tools/test.py --suite reference --shard 2/3`を使います。`RUSK_TEST_SHARD`環境変数でも指定でき、コマンドラインの指定を優先します。分割を指定しない通常の実行対象は変わりません。分割指定はtests・referenceに限り、不正な指定や空の分割はエラーになります。

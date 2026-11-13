@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run Rusk's checks, local tests, sanitizers, and public judge verification."""
 import argparse
+import json
 from dataclasses import dataclass
 import os
 from pathlib import Path
@@ -10,6 +11,60 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+
+REFERENCE_TESTS = (
+    'e2e', 'records', 'tuples', 'generics', 'extern_generics', 'extern_callbacks',
+    'library_migration', 'standard_expansion', 'includes', 'data_structures', 'callables', 'higher_order',
+    'beta04_structures', 'beta05', 'pipeline', 'cli', 'format', 'blocks_labels',
+    'enums', 'test_support', 'beta06', 'minmax', 'effects', 'bindings', 'readonly',
+    'readonly_routes', 'documentation', 'api', 'noescape', 'noescape_routes',
+    'heap_aliases', 'numeric', 'overloads', 'metadata', 'value_arguments', 'readonly_types', 'hash_reentry',
+)
+
+
+def shard_value(text):
+    try:
+        index, count = map(int, text.split('/'))
+    except ValueError:
+        raise argparse.ArgumentTypeError('shard must be INDEX/COUNT, for example 1/3') from None
+    if not 1 <= index <= count:
+        raise argparse.ArgumentTypeError('shard requires 1 <= INDEX <= COUNT')
+    return index, count
+
+
+def cargo_targets():
+    completed = subprocess.run(
+        ['cargo', 'metadata', '--locked', '--no-deps', '--format-version', '1'],
+        cwd=ROOT, check=True, capture_output=True, text=True,
+    )
+    metadata = json.loads(completed.stdout)
+    package = next(p for p in metadata['packages'] if Path(p['manifest_path']).parent == ROOT)
+    targets = []
+    for target in package['targets']:
+        if not target['test']:
+            continue
+        for kind in target['kind']:
+            if kind in ('bin', 'test', 'lib'):
+                targets.append((kind, target['name']))
+    return sorted(set(targets))
+
+
+def selected_targets(suite, shard):
+    targets = cargo_targets() if suite == 'tests' else [('test', name) for name in sorted(REFERENCE_TESTS)]
+    index, count = shard
+    if count > len(targets):
+        raise ValueError(f'{count} shards exceed {len(targets)} test targets')
+    return targets[index - 1::count]
+
+
+def cargo_test_command(suite, shard=None):
+    command = ['cargo', 'test', '--locked']
+    if suite == 'tests' and shard is None:
+        return command
+    targets = selected_targets(suite, shard) if shard else [('test', name) for name in REFERENCE_TESTS]
+    for kind, name in targets:
+        command += ['--lib'] if kind == 'lib' else [f'--{kind}', name]
+    return command
 
 
 @dataclass
@@ -69,7 +124,11 @@ def main():
         help='all (default), local (checks/tests/reference), individual CI stages, sanitizers, or public judges',
     )
     parser.add_argument('--no-leaks', action='store_true', help='disable LeakSanitizer in ptrace environments')
+    parser.add_argument('--shard', type=shard_value, default=os.environ.get('RUSK_TEST_SHARD') or None,
+                        help='test target partition INDEX/COUNT; defaults to RUSK_TEST_SHARD')
     args = parser.parse_args()
+    if args.shard and args.suite not in ('tests', 'reference'):
+        parser.error('--shard requires --suite tests or --suite reference')
     results = []
     try:
         if args.suite in ('all', 'local', 'checks'):
@@ -77,20 +136,11 @@ def main():
             run_stage('Rusk formatting', [['cargo', 'build', '--locked'], [sys.executable, 'tools/check_format.py']], results)
             run_stage('Clippy', [['cargo', 'clippy', '--locked', '--all-targets', '--', '-D', 'warnings']], results)
         if args.suite in ('all', 'local', 'tests'):
-            run_stage('Cargo tests (E2E + AtCoder)', [['cargo', 'test', '--locked']], results)
+            run_stage('Cargo tests (E2E + AtCoder)', [cargo_test_command('tests', args.shard)], results)
         if args.suite in ('all', 'local', 'reference'):
             reference_env = os.environ.copy()
             reference_env['RUSK_TEST_NO_OPT'] = '1'
-            reference_command = ['cargo', 'test', '--locked']
-            for test in (
-                'e2e', 'records', 'tuples', 'generics', 'extern_generics', 'extern_callbacks',
-                'library_migration', 'standard_expansion', 'includes', 'data_structures', 'callables', 'higher_order',
-                'beta04_structures', 'beta05', 'pipeline', 'cli', 'format', 'blocks_labels',
-                'enums', 'test_support', 'beta06', 'minmax', 'effects', 'bindings', 'readonly',
-                'readonly_routes', 'documentation', 'api', 'noescape', 'noescape_routes',
-                'heap_aliases', 'numeric', 'overloads', 'metadata', 'value_arguments', 'readonly_types', 'hash_reentry',
-            ):
-                reference_command += ['--test', test]
+            reference_command = cargo_test_command('reference', args.shard)
             run_stage('Reference backend (no scalar optimization)',
                       [reference_command], results, env=reference_env)
         if args.suite in ('all', 'sanitizers'):
@@ -100,6 +150,9 @@ def main():
             run_stage('Sanitizers', [['cargo', 'build', '--locked'], command], results)
         if args.suite in ('all', 'public'):
             run_public(results)
+    except (ValueError, subprocess.CalledProcessError) as error:
+        print(f'Test target selection failed: {error}', file=sys.stderr)
+        return 1
     except KeyboardInterrupt:
         print('\nInterrupted.', file=sys.stderr)
         return 130

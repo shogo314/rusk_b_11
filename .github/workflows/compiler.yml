@@ -8,13 +8,24 @@ permissions:
   contents: read
 jobs:
   test:
-    name: ${{ matrix.suite }}
+    name: ${{ matrix.suite }} ${{ matrix.shard }}
     strategy:
       fail-fast: false
       matrix:
-        suite: [checks, tests, reference, sanitizers, public]
+        include:
+          - {suite: checks, shard: ''}
+          - {suite: tests, shard: '1/3'}
+          - {suite: tests, shard: '2/3'}
+          - {suite: tests, shard: '3/3'}
+          - {suite: reference, shard: '1/3'}
+          - {suite: reference, shard: '2/3'}
+          - {suite: reference, shard: '3/3'}
+          - {suite: sanitizers, shard: ''}
+          - {suite: public, shard: ''}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      RUSK_TEST_SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -34,4 +45,6 @@ jobs:
             ~/.cache/online-judge-tools/library-checker-problems
           key: public-judge-${{ runner.os }}-${{ hashFiles('requirements-verify.txt', 'examples/aoj/**', 'examples/library_checker/**') }}
           restore-keys: public-judge-${{ runner.os }}-
+      - run: python3 -m unittest discover -s tests -p test_test_runner.py
+        if: matrix.suite == 'checks'
       - run: python3 tools/test.py --suite ${{ matrix.suite }}
